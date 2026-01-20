@@ -15,5 +15,7 @@ public class App {
         SwingUtilities.invokeLater(() -> {
             new MainFrame().setVisible(true);
         });
+
+        System.out.println("Sirve");
     }
 }
