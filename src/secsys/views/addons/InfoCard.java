@@ -17,7 +17,7 @@ public class InfoCard extends JPanel {
         lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
 
         JLabel lblValue = new JLabel(value);
-        lblValue.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblValue.setFont(new Font("Segoe UI", Font.PLAIN, 12));;
         lblValue.setForeground(Color.DARK_GRAY);
 
         add(lblTitle, BorderLayout.NORTH);

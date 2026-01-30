@@ -8,7 +8,10 @@ import secsys.dto.ClienteInfoDTO;
 import secsys.repository.ClienteRepository;
 import secsys.router.ViewRouter;
 import secsys.services.ClienteService;
+import secsys.views.addons.ActionMessageFrame;
 import secsys.views.addons.CustomButton;
+import secsys.views.addons.CustomSelectDialog;
+import secsys.views.addons.ErrorActionDialog;
 import secsys.views.addons.InfoCard;
 import secsys.views.addons.RequiredFieldsMessageFrame;
 import secsys.views.addons.RoundedPanel;
@@ -24,6 +27,7 @@ public class ClientInformationPanel extends JPanel {
 
     private Image background;
 
+    private JTextField txtRazonSocial;
     private JTextField txtRuc;
     private CustomButton btnSearch;
 
@@ -32,17 +36,18 @@ public class ClientInformationPanel extends JPanel {
     private JPanel resultsPanel;
 
     private final ClienteController clienteController;
+    private final ClienteRepository clienteRepo; // ✅ para buscar por RUC exacto
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public ClientInformationPanel() {
-        this(createDefaultController());
+        this(createDefaultController(), createDefaultRepo());
     }
 
-    public ClientInformationPanel(ClienteController clienteController) {
+    public ClientInformationPanel(ClienteController clienteController, ClienteRepository clienteRepo) {
         this.clienteController = clienteController;
+        this.clienteRepo = clienteRepo;
 
-        // Imagen de fondo
         background = new ImageIcon("src\\secsys\\resources\\imagenFondo.png").getImage();
 
         setLayout(new GridBagLayout());
@@ -60,16 +65,20 @@ public class ClientInformationPanel extends JPanel {
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
         title.setBorder(new EmptyBorder(0, 0, 10, 0));
 
-        // ===== RUC =====
-        JPanel rucPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
-        rucPanel.setOpaque(false);
+        // ===== FILTROS =====
+        JPanel razonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
+        razonPanel.setOpaque(false);
 
-        txtRuc = new JTextField(15);
+        txtRazonSocial = new JTextField(18);
+        txtRuc = new JTextField(14);
+
         btnSearch = new CustomButton("Consultar", "#4A90E2");
 
-        rucPanel.add(new JLabel("RUC:"));
-        rucPanel.add(txtRuc);
-        rucPanel.add(btnSearch);
+        razonPanel.add(new JLabel("Razón social:"));
+        razonPanel.add(txtRazonSocial);
+        razonPanel.add(new JLabel("RUC:"));
+        razonPanel.add(txtRuc);
+        razonPanel.add(btnSearch);
 
         // ===== CHECKBOXES =====
         JPanel checkPanel = new JPanel(new GridLayout(0, 2, 10, 2));
@@ -78,6 +87,7 @@ public class ClientInformationPanel extends JPanel {
 
         chkAll = new JCheckBox("Seleccionar todos");
 
+        JCheckBox chkRuc = new JCheckBox("RUC");
         JCheckBox chkRazon = new JCheckBox("Razón social");
         JCheckBox chkDireccion = new JCheckBox("Dirección");
         JCheckBox chkRepresentante = new JCheckBox("Representante legal");
@@ -89,6 +99,7 @@ public class ClientInformationPanel extends JPanel {
         JCheckBox chkEstado = new JCheckBox("Estado del cliente");
 
         fieldChecks = new ArrayList<>();
+        fieldChecks.add(chkRuc);
         fieldChecks.add(chkRazon);
         fieldChecks.add(chkDireccion);
         fieldChecks.add(chkRepresentante);
@@ -106,7 +117,6 @@ public class ClientInformationPanel extends JPanel {
 
         checkPanel.add(chkAll);
         checkPanel.add(new JLabel(""));
-
         for (JCheckBox chk : fieldChecks) checkPanel.add(chk);
 
         // ===== RESULTADOS =====
@@ -126,7 +136,6 @@ public class ClientInformationPanel extends JPanel {
         resultScroll.getViewport().setOpaque(false);
         resultScroll.setOpaque(false);
 
-        // ===== CONSULTAR REAL =====
         btnSearch.addActionListener(e -> onSearch());
 
         // ===== BOTONES =====
@@ -146,13 +155,12 @@ public class ClientInformationPanel extends JPanel {
         center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
         center.setOpaque(false);
 
-        center.add(rucPanel);
+        center.add(razonPanel);
         center.add(Box.createVerticalStrut(2));
         center.add(checkPanel);
         center.add(Box.createVerticalStrut(6));
         center.add(resultScroll);
 
-        // ===== ARMADO FINAL =====
         card.add(title, BorderLayout.NORTH);
         card.add(center, BorderLayout.CENTER);
         card.add(buttons, BorderLayout.SOUTH);
@@ -161,10 +169,11 @@ public class ClientInformationPanel extends JPanel {
     }
 
     private void onSearch() {
-        String ruc = txtRuc.getText().trim();
+        String razon = (txtRazonSocial.getText() == null) ? "" : txtRazonSocial.getText().trim();
+        String ruc   = (txtRuc.getText() == null) ? "" : txtRuc.getText().trim();
 
-        if (ruc.isEmpty() || !ruc.matches("^\\d{13}$")) {
-            new RequiredFieldsMessageFrame("Error en campo: RUC\nIngrese un RUC válido de 13 dígitos.").setVisible(true);
+        if (razon.isEmpty() && ruc.isEmpty()) {
+            new RequiredFieldsMessageFrame("Ingrese una razón social o un RUC.").setVisible(true);
             return;
         }
 
@@ -180,49 +189,98 @@ public class ClientInformationPanel extends JPanel {
         }
 
         try {
-            ClienteInfoDTO cliente = clienteController.consultarPorRuc(ruc);
+            ClienteInfoDTO selected;
 
-            if (cliente == null) {
-                resultsPanel.removeAll();
-                resultsPanel.revalidate();
-                resultsPanel.repaint();
-                new RequiredFieldsMessageFrame("No existe un cliente registrado con el RUC ingresado.").setVisible(true);
-                return;
+            // ==========================================================
+            // 1) PRIORIDAD: si hay RUC, buscar por RUC exacto
+            // ==========================================================
+            if (!ruc.isBlank()) {
+                if (!ruc.matches("^\\d{13}$")) {
+                    ActionMessageFrame.showMsg("No hay coincidencias", "Cliente no encontrado por su RUC");
+                    resetResultsOnly();
+                    return;
+                }
+
+                selected = clienteRepo.findByRuc(ruc);
+
+                if (selected == null) {
+                    ActionMessageFrame.showMsg("Campos vacios", "Debe ingresar una razón social o un RUC");
+                    resetResultsOnly();
+                    return;
+                }
+
+            } else {
+                // ==========================================================
+                // 2) Si NO hay RUC, buscar por Razón Social (LIKE/ILIKE)
+                // ==========================================================
+                List<ClienteInfoDTO> matches = clienteController.consultarPorRazonSocial(razon);
+
+                if (matches == null || matches.isEmpty()) {
+                    ActionMessageFrame.showMsg("No hay coincidencias", "Cliente no encontrado por su razón social");;
+                    resetResultsOnly();
+                    return;
+                }
+
+                if (matches.size() == 1) {
+                    selected = matches.get(0);
+                } else {
+                    String[] options = new String[matches.size()];
+                    for (int i = 0; i < matches.size(); i++) {
+                        ClienteInfoDTO c = matches.get(i);
+                        options[i] = nz(c.ruc) + " - " + nz(c.razonSocial);
+                    }
+
+                    String pick = CustomSelectDialog.showSelect(
+                            SwingUtilities.getWindowAncestor(this),
+                            "Seleccionar cliente",
+                            "Se encontraron " + matches.size() + " clientes.\nSeleccione uno:",
+                            options
+                    );
+
+                    if (pick == null) return;
+
+                    int idx = 0;
+                    for (int i = 0; i < options.length; i++) {
+                        if (options[i].equals(pick)) { idx = i; break; }
+                    }
+                    selected = matches.get(idx);
+                }
             }
 
-            showResults(cliente);
+            showResults(selected);
 
         } catch (DbException ex) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "No se pudo consultar el cliente.\nDetalle: " + safeMsg(ex),
-                    "Error de base de datos",
-                    JOptionPane.ERROR_MESSAGE
+            ErrorActionDialog.showError(
+                    SwingUtilities.getWindowAncestor(this),
+                    "Campo inválido. No se puede actualizar."
             );
+            resetResultsOnly();
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Ocurrió un error inesperado.\nDetalle: " + safeMsg(ex),
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE
+            ErrorActionDialog.showError(
+                    SwingUtilities.getWindowAncestor(this),
+                    "Campo inválido. No se puede actualizar."
             );
+            resetResultsOnly();
         }
     }
 
     private void showResults(ClienteInfoDTO c) {
         resultsPanel.removeAll();
-
         boolean all = chkAll.isSelected();
 
-        JCheckBox chkRazon = fieldChecks.get(0);
-        JCheckBox chkDireccion = fieldChecks.get(1);
-        JCheckBox chkRepresentante = fieldChecks.get(2);
-        JCheckBox chkTelefono = fieldChecks.get(3);
-        JCheckBox chkCorreo = fieldChecks.get(4);
-        JCheckBox chkSector = fieldChecks.get(5);
-        JCheckBox chkSize = fieldChecks.get(6);
-        JCheckBox chkFechas = fieldChecks.get(7);
-        JCheckBox chkEstado = fieldChecks.get(8);
+        JCheckBox chkRuc = fieldChecks.get(0);
+        JCheckBox chkRazon = fieldChecks.get(1);
+        JCheckBox chkDireccion = fieldChecks.get(2);
+        JCheckBox chkRepresentante = fieldChecks.get(3);
+        JCheckBox chkTelefono = fieldChecks.get(4);
+        JCheckBox chkCorreo = fieldChecks.get(5);
+        JCheckBox chkSector = fieldChecks.get(6);
+        JCheckBox chkSize = fieldChecks.get(7);
+        JCheckBox chkFechas = fieldChecks.get(8);
+        JCheckBox chkEstado = fieldChecks.get(9);
+
+        if (all || chkRuc.isSelected())
+            resultsPanel.add(new InfoCard("RUC", nz(c.ruc)));
 
         if (all || chkRazon.isSelected())
             resultsPanel.add(new InfoCard("Razón social", nz(c.razonSocial)));
@@ -240,10 +298,10 @@ public class ClientInformationPanel extends JPanel {
             resultsPanel.add(new InfoCard("Correo", nz(c.correo)));
 
         if (all || chkSector.isSelected())
-            resultsPanel.add(new InfoCard("Sector", nz(c.sector)));
+            resultsPanel.add(new InfoCard("Sector", prettySector(c.sector)));
 
         if (all || chkSize.isSelected())
-            resultsPanel.add(new InfoCard("Tamaño", nz(c.tamano)));
+            resultsPanel.add(new InfoCard("Tamaño", prettyTamano(c.tamano)));
 
         if (all || chkFechas.isSelected()) {
             String ini = (c.fechaInicioContrato == null) ? "-" : c.fechaInicioContrato.format(FMT);
@@ -258,13 +316,45 @@ public class ClientInformationPanel extends JPanel {
         resultsPanel.repaint();
     }
 
-    private void resetForm() {
-        txtRuc.setText("");
-        chkAll.setSelected(false);
-        for (JCheckBox chk : fieldChecks) chk.setSelected(false);
+    // ✅ Mapeo SOLO para presentar (BD queda sin tildes/ñ)
+    private static String prettySector(String s) {
+        if (s == null || s.isBlank()) return "-";
+        String v = s.trim();
+
+        // Normal (sin tildes) → Presentación (con tilde)
+        if (v.equalsIgnoreCase("Tecnologico")) return "Tecnológico";
+
+        // Si por algún motivo llega “dañado” con �, lo corregimos igual
+        String low = v.toLowerCase();
+        if (low.contains("tecnol")) return "Tecnológico";
+
+        return v;
+    }
+
+    private static String prettyTamano(String s) {
+        if (s == null || s.isBlank()) return "-";
+        String v = s.trim();
+
+        if (v.equalsIgnoreCase("Pequena")) return "Pequeña";
+
+        String low = v.toLowerCase();
+        if (low.contains("peque")) return "Pequeña";
+
+        return v;
+    }
+
+    private void resetResultsOnly() {
         resultsPanel.removeAll();
         resultsPanel.revalidate();
         resultsPanel.repaint();
+    }
+
+    private void resetForm() {
+        txtRazonSocial.setText("");
+        txtRuc.setText("");
+        chkAll.setSelected(false);
+        for (JCheckBox chk : fieldChecks) chk.setSelected(false);
+        resetResultsOnly();
     }
 
     @Override
@@ -277,12 +367,6 @@ public class ClientInformationPanel extends JPanel {
         return (s == null || s.isBlank()) ? "-" : s;
     }
 
-    private static String safeMsg(Throwable t) {
-        if (t == null) return "";
-        String m = t.getMessage();
-        return (m == null || m.isBlank()) ? t.getClass().getSimpleName() : m;
-    }
-
     private static ClienteController createDefaultController() {
         DbConfig cfg = DbConfig.fromEnv();
         DbConnection db = new DbConnection(cfg);
@@ -290,5 +374,11 @@ public class ClientInformationPanel extends JPanel {
         ClienteRepository repo = new ClienteRepository(db);
         ClienteService service = new ClienteService(repo);
         return new ClienteController(service);
+    }
+
+    private static ClienteRepository createDefaultRepo() {
+        DbConfig cfg = DbConfig.fromEnv();
+        DbConnection db = new DbConnection(cfg);
+        return new ClienteRepository(db);
     }
 }

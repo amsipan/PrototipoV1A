@@ -5,6 +5,7 @@ import secsys.dto.ClienteInfoDTO;
 import secsys.repository.ClienteRepository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public class ClienteService {
@@ -54,5 +55,9 @@ public class ClienteService {
 
     public ClienteInfoDTO consultarPorRuc(String ruc) {
         return repo.findByRuc(ruc);
+    }
+
+    public List<ClienteInfoDTO> consultarPorRazonSocial(String razonSocial) {
+        return repo.findByRazonSocialLikeIgnoreCase(razonSocial);
     }
 }

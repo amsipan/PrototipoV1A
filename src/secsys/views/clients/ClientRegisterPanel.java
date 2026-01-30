@@ -11,6 +11,7 @@ import secsys.config.DbConfig;
 import secsys.controllers.ClienteController;
 import secsys.db.DbConnection;
 import secsys.db.DbException;
+import secsys.dto.ClienteCreateDTO;
 import secsys.repository.ClienteRepository;
 import secsys.services.ClienteService;
 
@@ -87,12 +88,12 @@ public class ClientRegisterPanel extends JPanel {
         txtCorreo = new JTextField(20);
 
         cmbSector = new JComboBox<>(new String[]{
-                "Seleccione", "Comercial", "Industrial", "Servicios", "Tecnologico", "Otro"
+                "Seleccione", "Comercial", "Industrial", "Servicios", "Tecnológico", "Otro"
         });
 
 
         cmbSize = new JComboBox<>(new String[]{
-                "Seleccione", "Microempresa", "Pequena", "Mediana", "Grande"
+                "Seleccione", "Microempresa", "Pequeña", "Mediana", "Grande"
         });
 
         // Estado SIEMPRE "Activo" y deshabilitado
@@ -148,18 +149,33 @@ public class ClientRegisterPanel extends JPanel {
     private void onSave() {
         String msg = validateFormMessage();
         if (msg != null) {
-            new RequiredFieldsMessageFrame("Error en campo: " + msg).setVisible(true);
+            new RequiredFieldsMessageFrame("" + msg).setVisible(true);
             return;
         }
 
         try {
+            ClienteCreateDTO dto = new ClienteCreateDTO();
+            dto.ruc = txtRuc.getText().trim();
+            dto.razonSocial = txtRazonSocial.getText().trim();
+            dto.direccion = txtDireccion.getText().trim();
+            dto.representanteLegal = txtRepresentante.getText().trim();
+            dto.telefono = txtTelefono.getText().trim();
+            dto.correo = txtCorreo.getText().trim();
+            dto.sector = normalizeCatalog(String.valueOf(cmbSector.getSelectedItem()));
+            dto.tamano = normalizeCatalog(String.valueOf(cmbSize.getSelectedItem()));
+            
+            LocalDate ini = toLocalDate(dcInicioContrato.getDate());
+            LocalDate fin = toLocalDate(dcFinContrato.getDate());
+            dto.fechaInicioContrato = ini;
+            dto.fechaFinContrato = fin; 
 
+            clienteController.registrarCliente(dto);
             new SuccessMessageFrame("Cliente registrado correctamente.").setVisible(true);
             resetForm();
             ViewRouter.show("dashboard");
 
         } catch (IllegalArgumentException ex) {
-            new RequiredFieldsMessageFrame("Error en campo: " + ex.getMessage()).setVisible(true);
+            new RequiredFieldsMessageFrame("" + ex.getMessage()).setVisible(true);
 
         } catch (DbException ex) {
                 
@@ -220,34 +236,34 @@ public class ClientRegisterPanel extends JPanel {
         
             // Dominio / catálogo de sector
             if (low.contains("d_sector_empresa_check") || low.contains("d_sector_empresa")) {
-                return "Error en campo: Sector empresarial\n";
+                return "Sector empresarial\n";
             }
 
             // Dominio / catálogo de tamaño
             if (low.contains("d_tamano_empresa_check") || low.contains("d_tamano_empresa")) {
-                return "Error en campo: Tamaño de la empresa\n";
+                return "Tamaño de la empresa\n";
             }
     
             // Uniques típicos
             if (low.contains("duplicate key") && low.contains("ruc")) {
-                return "Error en campo: RUC\nYa existe un cliente registrado con ese RUC.";
+                return "RUC\nYa existe un cliente registrado con ese RUC.";
             }
     
             // Check de fechas
             if (low.contains("ck_cliente_fechas_contrato") || low.contains("fecha_fin_contrato")) {
-                return "Error en campo: Fechas de contrato\nLa fecha fin debe ser mayor a la fecha inicio.";
+                return "Fechas de contrato\nLa fecha fin debe ser mayor a la fecha inicio.";
             }
     
             // Not null
             if (low.contains("null value in column")) {
                 if (low.contains("fecha_inicio_contrato"))
-                    return "Error en campo: Fecha inicio contrato\nDebe seleccionar una fecha.";
+                    return "Fecha inicio contrato\nDebe seleccionar una fecha.";
                 if (low.contains("fecha_fin_contrato"))
-                    return "Error en campo: Fecha fin contrato\nDebe seleccionar una fecha.";
+                    return "Fecha fin contrato\nDebe seleccionar una fecha.";
                 if (low.contains("ruc"))
-                    return "Error en campo: RUC\nNo puede estar vacío.";
+                    return "RUC\nNo puede estar vacío.";
                 if (low.contains("correo"))
-                    return "Error en campo: Correo electrónico\nNo puede estar vacío.";
+                    return "Correo electrónico\nNo puede estar vacío.";
             }
     
             // Tabla no encontrada (schema incorrecto)
@@ -319,4 +335,13 @@ public class ClientRegisterPanel extends JPanel {
 
         return new ClienteController(service);
     }
+
+    private static String normalizeCatalog(String v) {
+    if (v == null) return null;
+    v = v.trim();
+    if (v.equals("Tecnológico")) return "Tecnologico";
+    if (v.equals("Pequeña")) return "Pequena";
+    return v;
+}
+
 }

@@ -8,8 +8,9 @@ import secsys.db.DbException;
 import secsys.db.DbUtils;
 
 import java.sql.*;
-import java.text.Normalizer;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 public class ClienteRepository extends BaseRepository {
@@ -89,8 +90,8 @@ public class ClienteRepository extends BaseRepository {
 
                 Date ini = rs.getDate("fecha_inicio_contrato");
                 Date fin = rs.getDate("fecha_fin_contrato");
-                dto.fechaInicioContrato = (ini == null) ? null : ini.toLocalDate();
-                dto.fechaFinContrato = (fin == null) ? null : fin.toLocalDate();
+                dto.fechaInicioContrato = (ini == null) ? null : ((java.sql.Date) ini).toLocalDate();
+                dto.fechaFinContrato = (fin == null) ? null : ((java.sql.Date) fin).toLocalDate();
 
                 return dto;
             }
@@ -122,64 +123,86 @@ public class ClienteRepository extends BaseRepository {
         }
     }
 
-    /**
-     * Actualiza un cliente por cliente_id.
-     * - NO actualiza el RUC (queda bloqueado en la UI).
-     */
-    public void updateById(UUID clienteId,
-                           String razonSocial,
-                           String direccion,
-                           String representanteLegal,
-                           String telefono,
-                           String correo,
-                           String sector,
-                           String tamano,
-                           String estado,
-                           LocalDate fechaInicioContrato,
-                           LocalDate fechaFinContrato) {
+    // ==========================================================
+    // ✅ NUEVO: buscar por razón social (CONTiene) ignorando caso (ILIKE)
+    // ==========================================================
+    public List<ClienteInfoDTO> findByRazonSocialLikeIgnoreCase(String razonSocialFragmento) {
+        if (razonSocialFragmento == null || razonSocialFragmento.trim().isEmpty()) {
+            throw new DbException("razonSocial es obligatoria.");
+        }
 
-        if (clienteId == null) throw new DbException("clienteId es obligatorio.");
-        if (razonSocial == null || razonSocial.isBlank()) throw new DbException("razonSocial es obligatorio.");
-        if (sector == null || sector.isBlank()) throw new DbException("sector es obligatorio.");
-        if (tamano == null || tamano.isBlank()) throw new DbException("tamano es obligatorio.");
-        if (estado == null || estado.isBlank()) throw new DbException("estado es obligatorio.");
-        if (fechaInicioContrato == null) throw new DbException("fechaInicioContrato es obligatoria.");
-        if (fechaFinContrato == null) throw new DbException("fechaFinContrato es obligatoria.");
-        
-
-        String razonSocialN = nfcTrim(razonSocial);
-        String sectorN = nfcTrim(sector);
-        String tamanoN = nfcTrim(tamano);
-        String estadoN = nfcTrim(estado);
-        
         final String sql =
-                "UPDATE sgsis.cliente SET " +
-                "razon_social = ?, " +
-                "direccion = ?, " +
-                "representante_legal = ?, " +
-                "telefono = ?, " +
-                "correo = ?, " +
-                "sector = ?, " +
-                "tamano = ?, " +
-                "estado = ?, " +
-                "fecha_inicio_contrato = ?, " +
-                "fecha_fin_contrato = ? " +
-                "WHERE cliente_id = ?";
+                "SELECT cliente_id, ruc, razon_social, direccion, representante_legal, telefono, correo, " +
+                "       sector, tamano, estado, fecha_inicio_contrato, fecha_fin_contrato " +
+                "FROM sgsis.cliente " +
+                "WHERE razon_social ILIKE ('%' || ? || '%') " +
+                "ORDER BY razon_social ASC, ruc ASC";
 
         try (Connection conn = provider.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setString(1, razonSocialN);
-            ps.setString(2, emptyToNullNfc(direccion));
-            ps.setString(3, emptyToNullNfc(representanteLegal));
-            ps.setString(4, emptyToNullNfc(telefono));
-            ps.setString(5, emptyToNullNfc(correo));
-            ps.setString(6, sectorN);
-            ps.setString(7, tamanoN);
-            ps.setString(8, estadoN);
-            ps.setDate(9, Date.valueOf(fechaInicioContrato));
-            ps.setDate(10, Date.valueOf(fechaFinContrato));
-            ps.setObject(11, clienteId);
+            ps.setString(1, razonSocialFragmento.trim());
+
+            List<ClienteInfoDTO> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ClienteInfoDTO dto = new ClienteInfoDTO();
+                    dto.clienteId = (UUID) rs.getObject("cliente_id");
+                    dto.ruc = rs.getString("ruc");
+                    dto.razonSocial = rs.getString("razon_social");
+                    dto.direccion = rs.getString("direccion");
+                    dto.representanteLegal = rs.getString("representante_legal");
+                    dto.telefono = rs.getString("telefono");
+                    dto.correo = rs.getString("correo");
+                    dto.sector = rs.getString("sector");
+                    dto.tamano = rs.getString("tamano");
+                    dto.estado = rs.getString("estado");
+
+                    Date ini = rs.getDate("fecha_inicio_contrato");
+                    Date fin = rs.getDate("fecha_fin_contrato");
+                    dto.fechaInicioContrato = (ini == null) ? null : ((java.sql.Date) ini).toLocalDate();
+                    dto.fechaFinContrato = (fin == null) ? null : ((java.sql.Date) fin).toLocalDate();
+
+                    out.add(dto);
+                }
+            }
+            return out;
+
+        } catch (SQLException ex) {
+            throw new DbException("Error consultando cliente por razón social: " + ex.getMessage(), ex);
+        }
+    }
+
+    // ==========================================================
+    // ✅ NUEVO: actualizar por cliente_id (lo usa ClientUpdatePanel)
+    // ==========================================================
+    public void updateById(UUID clienteId,
+                           String direccion,
+                           String representanteLegal,
+                           String telefono,
+                           String correo,
+                           String estado) {
+
+        if (clienteId == null) throw new DbException("clienteId es obligatorio.");
+        if (estado == null || estado.isBlank()) throw new DbException("estado es obligatorio.");
+
+        final String sql =
+                "UPDATE sgsis.cliente SET " +
+                "direccion = ?, " +
+                "representante_legal = ?, " +
+                "telefono = ?, " +
+                "correo = ?, " +
+                "estado = ? " +
+                "WHERE cliente_id = ?";
+
+        try (Connection conn = provider.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, emptyToNull(direccion));
+            ps.setString(2, emptyToNull(representanteLegal));
+            ps.setString(3, emptyToNull(telefono));
+            ps.setString(4, emptyToNull(correo));
+            ps.setString(5, estado.trim());
+            ps.setObject(6, clienteId);
 
             int updated = ps.executeUpdate();
             if (updated == 0) {
@@ -191,19 +214,43 @@ public class ClienteRepository extends BaseRepository {
         }
     }
 
-
-    private static String nfcTrim(String s) {
+    private static String emptyToNull(String s) {
         if (s == null) return null;
-        String t = s.trim();
-        // OJO: si quieres también limpiar espacios raros (NBSP), descomenta:
-        // t = t.replace('\u00A0', ' ').trim();
-        return Normalizer.normalize(t, Normalizer.Form.NFC);
+        String x = s.trim();
+        return x.isEmpty() ? null : x;
     }
 
-    private static String emptyToNullNfc(String s) {
-        if (s == null) return null;
-        String t = nfcTrim(s);
-        return (t == null || t.isBlank()) ? null : t;
+    public List<ClienteBasicDTO> findBasicByRazonSocialLikeIgnoreCase(String razon) {
+        
+        if (razon == null) razon = "";
+        String term = razon.trim();
+        if (term.isEmpty()) return java.util.Collections.emptyList();
+        
+        final String sql =
+                "SELECT cliente_id, razon_social " +
+                "FROM sgsis.cliente " +
+                "WHERE razon_social ILIKE ('%' || ? || '%') " +
+                "ORDER BY razon_social ASC";
+        
+        try (Connection conn = provider.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setString(1, term);
+            
+            List<ClienteBasicDTO> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ClienteBasicDTO dto = new ClienteBasicDTO();
+                    dto.clienteId = (UUID) rs.getObject("cliente_id");
+                    dto.razonSocial = rs.getString("razon_social");
+                    out.add(dto);
+                }
+            }
+            return out;
+        
+        } catch (SQLException ex) {
+            throw new DbException("Error consultando cliente por razón social: " + ex.getMessage(), ex);
+        }
     }
-    
+
 }

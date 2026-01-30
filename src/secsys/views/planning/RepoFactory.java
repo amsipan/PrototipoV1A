@@ -3,26 +3,36 @@ package secsys.views.planning;
 import secsys.db.DbConnection;
 import secsys.repository.ClienteRepository;
 import secsys.repository.PlanningRepository;
-
-import java.util.Objects;
+import secsys.repository.UsuarioRepository;
 
 public final class RepoFactory {
 
-    private static volatile DbConnection provider;
+    private static DbConnection db;
 
     private RepoFactory() {}
 
-    public static void init(DbConnection dbProvider) {
-        provider = Objects.requireNonNull(dbProvider);
+    public static void init(DbConnection dbConnection) {
+        db = dbConnection;
     }
 
-    public static PlanningRepository planningRepository() {
-        if (provider == null) throw new IllegalStateException("RepoFactory no inicializado. Llama RepoFactory.init(dbConnection) al iniciar la app.");
-        return new PlanningRepository(provider);
+    private static void ensureInit() {
+        if (db == null) {
+            throw new IllegalStateException("RepoFactory no inicializado. Llama RepoFactory.init(dbConnection) al iniciar la app.");
+        }
     }
 
     public static ClienteRepository clienteRepository() {
-        if (provider == null) throw new IllegalStateException("RepoFactory no inicializado. Llama RepoFactory.init(dbConnection) al iniciar la app.");
-        return new ClienteRepository(provider);
+        ensureInit();
+        return new ClienteRepository(db);
+    }
+
+    public static PlanningRepository planningRepository() {
+        ensureInit();
+        return new PlanningRepository(db);
+    }
+
+    public static UsuarioRepository usuarioRepository() {
+        ensureInit();
+        return new UsuarioRepository(db);
     }
 }

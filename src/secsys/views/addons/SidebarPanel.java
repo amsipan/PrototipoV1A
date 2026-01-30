@@ -3,43 +3,48 @@ package secsys.views.addons;
 import secsys.router.ViewRouter;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
 public class SidebarPanel extends JPanel {
 
-    public SidebarPanel(boolean isAdmin) {
+    public SidebarPanel(boolean showAudit, boolean showAdmin, boolean showPlatforms) {
 
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-        setOpaque(true);
+        setBackground(Color.WHITE);
+        setBorder(new EmptyBorder(15, 12, 15, 12));
         setPreferredSize(new Dimension(220, 0));
-        setOpaque(true);
-        setBackground(new Color(35, 45, 60));
 
-
-        add(createNavButton("Clientes", "clients"));
+        add(makeNavButton("Clientes", () -> ViewRouter.show("clients")));
         add(Box.createVerticalStrut(10));
 
-        add(createNavButton("Cotizaciones", "finance"));
+        add(makeNavButton("Cotizaciones", () -> ViewRouter.show("finance-quote")));
         add(Box.createVerticalStrut(10));
 
-        add(createNavButton("Planificaciones", "plannings"));
-        add(Box.createVerticalStrut(20));
+        add(makeNavButton("Planificaciones", () -> ViewRouter.show("plannings")));
+        add(Box.createVerticalStrut(10));
 
-        if (isAdmin) {
-            add(createNavButton("Administración", "admin"));
+        if (showPlatforms) {
+            add(makeNavButton("Plataformas", () -> ViewRouter.show("platforms")));
             add(Box.createVerticalStrut(10));
+        }
 
-            add(createNavButton("Auditoría", "audit"));
+        if (showAdmin) {
+            add(makeNavButton("Administración del Sistema", () -> ViewRouter.show("admin")));
             add(Box.createVerticalStrut(10));
+        }
 
-            add(createNavButton("Plataformas", "platforms"));
+        if (showAudit) {
+            add(makeNavButton("Auditoría", () -> ViewRouter.show("audit")));
+            add(Box.createVerticalStrut(10));
         }
     }
 
-    private CustomButton createNavButton(String text, String route) {
-        CustomButton btn = new CustomButton(text, "#5DA9E9");
+    private JComponent makeNavButton(String text, Runnable action) {
+        CustomButton btn = new CustomButton(text, "#4A90E2");
         btn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btn.addActionListener(e -> ViewRouter.show(route));
+        btn.setMaximumSize(new Dimension(200, 44));
+        btn.addActionListener(e -> action.run());
         return btn;
     }
 }

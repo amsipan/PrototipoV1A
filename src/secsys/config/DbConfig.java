@@ -35,11 +35,16 @@ public final class DbConfig {
 
     /** URL JDBC con currentSchema para trabajar con un único esquema */
     public String jdbcUrl() {
-        // currentSchema=sgsis evita escribir "sgsis." en cada query
-        String base = "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
-        String params = "?currentSchema=" + schema + "&ssl=" + ssl;
-        return base + params;
-    }
+    String base = "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
+
+    // 👇 OJO: options debe ir URL-encoded (%20 por espacio)
+    String params =
+            "?currentSchema=" + schema +
+            "&ssl=" + ssl +
+            "&options=-c%20client_encoding=UTF8";
+
+    return base + params;
+}
 
     public String user() { return user; }
     public String password() { return password; }

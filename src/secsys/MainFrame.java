@@ -7,12 +7,12 @@ import secsys.views.admin.AdminCreateUserPanel;
 import secsys.views.admin.AdminDeleteUserPanel;
 import secsys.views.admin.AdminModifyUserPanel;
 import secsys.views.admin.AdminPanel;
+import secsys.views.admin.AdminSettingsPanel;
 import secsys.views.audit.AuditPanel;
 import secsys.views.clients.ClientInformationPanel;
 import secsys.views.clients.ClientRegisterPanel;
 import secsys.views.clients.ClientUpdatePanel;
 import secsys.views.clients.ClientsActionsView;
-import secsys.views.dashboard.DashboardPanel;
 import secsys.views.finance.QuotationCreatePanel;
 import secsys.views.finance.QuotationLinkPanel;
 import secsys.views.planning.PlanningActionsView;
@@ -27,7 +27,7 @@ import javax.swing.*;
 
 public class MainFrame extends JFrame {
 
-    private static final boolean SHOW_AUDIT = false;
+    
 
     public MainFrame() {
         setTitle("SECSYS - Prototipo UI");
@@ -40,7 +40,6 @@ public class MainFrame extends JFrame {
         
 
         ViewRouter.register("login", new LoginPanel());
-        ViewRouter.register("dashboard", new DashboardPanel(SHOW_AUDIT));
         ViewRouter.register("clients", new ClientsActionsView());
         ViewRouter.register("clients-register", new ClientRegisterPanel());
         ViewRouter.register("clients-consult", new ClientInformationPanel());
@@ -55,6 +54,7 @@ public class MainFrame extends JFrame {
         ViewRouter.register("admin-modify", new AdminModifyUserPanel());
         ViewRouter.register("admin-delete", new AdminDeleteUserPanel());
         ViewRouter.register("admin-consult", new AdminConsultUserPanel());
+        ViewRouter.register("admin-parametros", new AdminSettingsPanel());
         ViewRouter.register("audit", new AuditPanel());
         ViewRouter.register("platforms", new PlatformsPanel());
         ViewRouter.register("platforms-register", new PlatformsRegisterPanel());

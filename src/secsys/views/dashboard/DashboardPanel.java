@@ -4,8 +4,10 @@ import com.toedter.calendar.JDateChooser;
 import secsys.dto.CalendarActivityDTO;
 import secsys.repository.ClienteRepository;
 import secsys.repository.PlanningRepository;
+import secsys.router.ViewRouter;
 import secsys.views.addons.CustomButton;
 import secsys.views.addons.SidebarPanel;
+import secsys.views.addons.RoundedPanel;
 import secsys.views.planning.RepoFactory;
 
 import javax.swing.*;
@@ -21,30 +23,29 @@ import java.util.UUID;
 public class DashboardPanel extends JPanel {
 
     private final SidebarPanel sidebar;
-
     private final ClienteRepository clienteRepo;
     private final PlanningRepository planningRepo;
 
-    // Header UI
     private JLabel lblWeekRange;
-
-    // Calendar UI
     private JPanel calendarGrid;
     private JScrollPane scroll;
 
-    // Week state
     private LocalDate weekStart; // Monday
     private static final int START_HOUR = 8;
-    private static final int END_HOUR = 19; // 8..18 (11 filas)
+    private static final int END_HOUR = 19; // 8..18
 
-    // ✅ Solo días laborables
-    private static final int WORK_DAYS = 5;
-    private static final String[] DAYS = {"Lun", "Mar", "Mié", "Jue", "Vie"};
+    private ImageIcon menu;
+    private ImageIcon left;
+    private ImageIcon right;
 
-    public DashboardPanel(boolean SHOW_AUDIT) {
+    public DashboardPanel(boolean showAudit, boolean showAdmin, boolean showPlatforms) {
 
         this.clienteRepo = RepoFactory.clienteRepository();
         this.planningRepo = RepoFactory.planningRepository();
+
+        menu = new ImageIcon("src\\secsys\\resources\\category.png");
+        left = new ImageIcon("src\\secsys\\resources\\chevron-left.png");
+        right = new ImageIcon("src\\secsys\\resources\\chevron-right.png");
 
         setLayout(new BorderLayout());
         setBackground(new Color(245, 247, 250));
@@ -60,16 +61,17 @@ public class DashboardPanel extends JPanel {
         JLabel title = new JLabel("Calendario");
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
 
-        JButton btnMenu = new JButton("☰");
+        JButton btnMenu = new JButton();
         btnMenu.setFocusPainted(false);
         btnMenu.setBorderPainted(false);
         btnMenu.setBackground(Color.WHITE);
         btnMenu.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        btnMenu.setIcon(menu);
 
         leftHeader.add(btnMenu);
         leftHeader.add(title);
 
-        sidebar = new SidebarPanel(SHOW_AUDIT);
+        sidebar = new SidebarPanel(showAudit, showAdmin, showPlatforms);
         sidebar.setVisible(false);
 
         btnMenu.addActionListener(e -> {
@@ -81,23 +83,22 @@ public class DashboardPanel extends JPanel {
         JPanel rightHeader = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         rightHeader.setOpaque(false);
 
-        // ✅ Botones con tu clase CustomButton
-        CustomButton btnPrev = new CustomButton("->", "#9E9E9E");
-        CustomButton btnToday = new CustomButton("Hoy", "#9E9E9E");
-        CustomButton btnNext = new CustomButton("<-", "#9E9E9E");
+        CustomButton btnPrev = new CustomButton(left, "#4A90E2");
+        btnPrev.setPreferredSize(new Dimension(70, 40));
 
-        btnPrev.addActionListener(e -> {
-            weekStart = weekStart.minusWeeks(1);
-            refreshCalendar();
-        });
-        btnToday.addActionListener(e -> {
-            weekStart = mondayOf(LocalDate.now());
-            refreshCalendar();
-        });
-        btnNext.addActionListener(e -> {
-            weekStart = weekStart.plusWeeks(1);
-            refreshCalendar();
-        });
+        CustomButton btnSalir = new CustomButton("Cerrar Sesión", "#24282c");
+        btnSalir.setPreferredSize(new Dimension(150, 40));
+
+        CustomButton btnToday = new CustomButton("Hoy", "#4A90E2");
+        btnToday.setPreferredSize(new Dimension(100, 40));
+
+        CustomButton btnNext = new CustomButton(right, "#4A90E2");
+        btnNext.setPreferredSize(new Dimension(70, 40));
+
+        btnPrev.addActionListener(e -> { weekStart = weekStart.minusWeeks(1); refreshCalendar(); });
+        btnToday.addActionListener(e -> { weekStart = mondayOf(LocalDate.now()); refreshCalendar(); });
+        btnNext.addActionListener(e -> { weekStart = weekStart.plusWeeks(1); refreshCalendar(); });
+        btnSalir.addActionListener(e -> {ViewRouter.show("login");});
 
         CustomButton btnAdd = new CustomButton("Agregar actividad", "#4A90E2");
         btnAdd.addActionListener(e -> openAddActivityDialog());
@@ -111,16 +112,16 @@ public class DashboardPanel extends JPanel {
         rightHeader.add(btnNext);
         rightHeader.add(lblWeekRange);
         rightHeader.add(btnAdd);
+        rightHeader.add(btnSalir);
 
         header.add(leftHeader, BorderLayout.WEST);
         header.add(rightHeader, BorderLayout.EAST);
 
         add(header, BorderLayout.NORTH);
 
-        // ===== CONTENEDOR CENTRAL =====
+        // ===== MAIN =====
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setOpaque(false);
-
         mainPanel.add(sidebar, BorderLayout.WEST);
 
         calendarGrid = new JPanel();
@@ -133,63 +134,50 @@ public class DashboardPanel extends JPanel {
         scroll.getVerticalScrollBar().setUnitIncrement(16);
 
         mainPanel.add(scroll, BorderLayout.CENTER);
-
         add(mainPanel, BorderLayout.CENTER);
 
-        // ===== Inicialización semana actual =====
         weekStart = mondayOf(LocalDate.now());
         refreshCalendar();
     }
 
-    // ===========================
-    // Render calendar
-    // ===========================
     private void refreshCalendar() {
         calendarGrid.removeAll();
 
-        // ✅ Rango laboral: lunes a viernes
-        LocalDate weekEnd = weekStart.plusDays(WORK_DAYS - 1);
+        // ✅ Solo L-V (sin Sáb/Dom)
+        LocalDate weekEnd = weekStart.plusDays(4);
         DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         lblWeekRange.setText(df.format(weekStart) + " - " + df.format(weekEnd));
 
-        // Grilla: 1 col hora + 5 cols dias (sin sábados ni domingos)
         calendarGrid.setLayout(new GridBagLayout());
         GridBagConstraints gc = new GridBagConstraints();
         gc.fill = GridBagConstraints.BOTH;
-        gc.weightx = 1;
-        gc.weighty = 0;
         gc.insets = new Insets(4, 4, 4, 4);
 
-        // Header row
+        // Header
         gc.gridy = 0;
-
-        // esquina (vacía)
         gc.gridx = 0;
         gc.weightx = 0.2;
         calendarGrid.add(makeHeaderCell(""), gc);
 
-        // días (L-V)
-        for (int d = 0; d < WORK_DAYS; d++) {
+        String[] days = {"Lun", "Mar", "Mié", "Jue", "Vie"};
+        for (int d = 0; d < 5; d++) {
             gc.gridx = d + 1;
             gc.weightx = 1.0;
             LocalDate date = weekStart.plusDays(d);
-            calendarGrid.add(makeHeaderCell(DAYS[d] + " " + date.format(df)), gc);
+            calendarGrid.add(makeHeaderCell(days[d] + " " + date.format(df)), gc);
         }
 
-        // Body: horas
-        JPanel[][] cells = new JPanel[(END_HOUR - START_HOUR)][WORK_DAYS];
+        JPanel[][] cells = new JPanel[(END_HOUR - START_HOUR)][5];
 
         for (int h = START_HOUR; h < END_HOUR; h++) {
             int row = (h - START_HOUR) + 1;
             gc.gridy = row;
 
-            // col hora
             gc.gridx = 0;
             gc.weightx = 0.2;
             calendarGrid.add(makeTimeCell(String.format("%02d:00", h)), gc);
 
-            // col días (L-V)
-            for (int d = 0; d < WORK_DAYS; d++) {
+            for (int d = 0; d < 5; d++) {
                 gc.gridx = d + 1;
                 gc.weightx = 1.0;
 
@@ -204,11 +192,11 @@ public class DashboardPanel extends JPanel {
             }
         }
 
-        // Cargar actividades desde BD (semanal completa, pero pintamos solo L-V)
+        // BD
         try {
             ZoneId zone = ZoneId.systemDefault();
             OffsetDateTime from = weekStart.atStartOfDay(zone).toOffsetDateTime();
-            OffsetDateTime to = weekStart.plusDays(7).atStartOfDay(zone).toOffsetDateTime();
+            OffsetDateTime to = weekStart.plusDays(5).atStartOfDay(zone).toOffsetDateTime();
 
             List<CalendarActivityDTO> acts = planningRepo.findCalendarActivitiesBetween(from, to);
 
@@ -216,26 +204,21 @@ public class DashboardPanel extends JPanel {
                 if (a == null || a.fechaInicio == null) continue;
 
                 LocalDate day = a.fechaInicio.atZoneSameInstant(zone).toLocalDate();
-                int dayIdx = (day.getDayOfWeek().getValue() + 6) % 7; // Mon=0..Sun=6
+                int dow = day.getDayOfWeek().getValue(); // Mon=1..Sun=7
+                if (dow < 1 || dow > 5) continue;
 
-                // ✅ ignorar sábados(5) y domingos(6)
-                if (dayIdx >= WORK_DAYS) continue;
-
+                int dayIdx = dow - 1;
                 int hour = a.fechaInicio.atZoneSameInstant(zone).getHour();
                 int targetHour = clamp(hour, START_HOUR, END_HOUR - 1);
 
                 JPanel target = cells[targetHour - START_HOUR][dayIdx];
-                if (target != null) {
-                    target.add(makeActivityChip(a));
-                }
+                if (target != null) target.add(makeActivityChip(a));
             }
 
         } catch (Exception ex) {
             gc.gridx = 0;
             gc.gridy = (END_HOUR - START_HOUR) + 2;
-            gc.gridwidth = 6; // 1 hora + 5 días
-            gc.weightx = 1;
-            gc.weighty = 0;
+            gc.gridwidth = 6;
             JLabel err = new JLabel("Error cargando actividades: " + safeMsg(ex));
             err.setForeground(new Color(180, 0, 0));
             calendarGrid.add(err, gc);
@@ -248,7 +231,7 @@ public class DashboardPanel extends JPanel {
     private JComponent makeHeaderCell(String text) {
         JPanel p = new JPanel(new BorderLayout());
         p.setOpaque(true);
-        p.setBackground(new Color(255, 255, 255));
+        p.setBackground(Color.WHITE);
         p.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
         JLabel l = new JLabel(text, SwingConstants.CENTER);
         l.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -297,15 +280,9 @@ public class DashboardPanel extends JPanel {
         chip.add(left, BorderLayout.CENTER);
         chip.add(right, BorderLayout.EAST);
 
-        String tip = (a.razonSocial == null ? "" : a.razonSocial) +
-                (a.version == null ? "" : (" | " + a.version)) +
-                (a.descripcion == null ? "" : ("\n" + a.descripcion));
-        chip.setToolTipText("<html>" + esc(tip).replace("\n", "<br>") + "</html>");
-
         chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         chip.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
+            @Override public void mouseClicked(MouseEvent e) {
                 openChangeEstadoDialog(a);
             }
         });
@@ -330,7 +307,7 @@ public class DashboardPanel extends JPanel {
         mid.setOpaque(false);
 
         JComboBox<String> cmb = new JComboBox<>(new String[]{
-                 "Pendiente", "Completada", "Cancelada"
+                "Activa", "Pendiente", "En proceso", "Completado", "Cancelada"
         });
         cmb.setEditable(true);
         if (a.estado != null) cmb.setSelectedItem(a.estado);
@@ -339,10 +316,8 @@ public class DashboardPanel extends JPanel {
         mid.add(cmb);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttons.setOpaque(false);
-
-        CustomButton btnCancel = new CustomButton("Cancelar", "#9E9E9E");
-        CustomButton btnSave = new CustomButton("Guardar", "#4A90E2");
+        JButton btnCancel = new JButton("Cancelar");
+        JButton btnSave = new JButton("Guardar");
 
         btnCancel.addActionListener(e -> dlg.dispose());
         btnSave.addActionListener(e -> {
@@ -415,90 +390,129 @@ public class DashboardPanel extends JPanel {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    // ============================================================
-    // Inner Dialog Class: AddActivityDialog
-    // ============================================================
+    // =========================
+    // DIALOGO CUSTOM (REDONDEADO)
+    // =========================
     private static class AddActivityDialog extends JDialog {
-
         private final ClienteRepository clienteRepo;
         private final PlanningRepository planningRepo;
         private final Runnable onSaved;
 
-        private JTextField txtRuc;
-        private JLabel lblRazonSocial;
+        // Search (Razón social)
+        private JTextField txtRazonSocial;
+        private CustomButton btnBuscar;
+        private JLabel lblClienteSeleccionado; // muestra la razón social elegida
         private JLabel lblInline;
 
+        // Form
         private JTextField txtActividad;
         private JTextArea txtDescripcion;
 
         private JDateChooser dateChooser;
-        private JSpinner spHour;
-        private JSpinner spMinute;
-
-        private JSpinner spDurHour;
-        private JSpinner spDurMin;
-
+        private JSpinner spHour, spMinute, spDurHour, spDurMin;
         private JComboBox<String> cmbEstado;
 
+        // Estado
         private UUID clienteId;
 
-        AddActivityDialog(Window owner,
-                          ClienteRepository clienteRepo,
-                          PlanningRepository planningRepo,
-                          Runnable onSaved) {
-
+        AddActivityDialog(Window owner, ClienteRepository clienteRepo, PlanningRepository planningRepo, Runnable onSaved) {
             super(owner, "Agregar actividad", ModalityType.APPLICATION_MODAL);
             this.clienteRepo = clienteRepo;
             this.planningRepo = planningRepo;
             this.onSaved = onSaved;
 
-            setSize(520, 520);
+            // ✅ “usar toda la ventana”
+            setSize(820, 560);
             setLocationRelativeTo(owner);
+            setResizable(false);
 
             buildUI();
         }
 
         private void buildUI() {
-            JPanel root = new JPanel(new BorderLayout(10, 10));
-            root.setBorder(new EmptyBorder(12, 12, 12, 12));
+            // Fondo del dialog
+            JPanel root = new JPanel(new BorderLayout());
+            root.setBackground(new Color(245, 247, 250));
+            root.setBorder(new EmptyBorder(14, 14, 14, 14));
 
-            JPanel top = new JPanel(new GridLayout(4, 1, 6, 6));
-            top.setOpaque(false);
+            // ✅ Card que ocupa TODO el dialog (no centrado pequeño)
+            RoundedPanel card = new RoundedPanel(22);
+            card.setBackground(Color.WHITE);
+            card.setLayout(new BorderLayout(12, 12));
+            card.setBorder(new EmptyBorder(18, 18, 18, 18));
 
-            JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-            row1.setOpaque(false);
+            // ===== Header =====
+            JPanel header = new JPanel();
+            header.setOpaque(false);
+            header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
 
-            txtRuc = new JTextField(16);
-            CustomButton btnBuscar = new CustomButton("Buscar", "#4A90E2");
+            JLabel title = new JLabel("Agregar actividad");
+            title.setFont(new Font("Segoe UI", Font.BOLD, 22));
+            title.setForeground(new Color(35, 35, 35));
 
-            row1.add(new JLabel("RUC:"));
-            row1.add(txtRuc);
-            row1.add(btnBuscar);
+            JLabel subtitle = new JLabel("Complete los datos y guarde la actividad.");
+            subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            subtitle.setForeground(new Color(110, 110, 110));
 
-            JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-            row2.setOpaque(false);
+            header.add(title);
+            header.add(Box.createVerticalStrut(4));
+            header.add(subtitle);
 
-            lblRazonSocial = new JLabel("-");
-            lblRazonSocial.setFont(new Font("Segoe UI", Font.BOLD, 12));
-            row2.add(new JLabel("Razón social:"));
-            row2.add(lblRazonSocial);
+            // ===== Top: búsqueda por razón social =====
+            JPanel searchWrap = new JPanel(new GridBagLayout());
+            searchWrap.setOpaque(false);
+            searchWrap.setBorder(new EmptyBorder(8, 0, 8, 0));
+
+            GridBagConstraints sc = new GridBagConstraints();
+            sc.insets = new Insets(6, 6, 6, 6);
+            sc.fill = GridBagConstraints.HORIZONTAL;
+
+            JLabel lblRS = new JLabel("Razón social:");
+            lblRS.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+            txtRazonSocial = new JTextField();
+            txtRazonSocial.setPreferredSize(new Dimension(380, 32));
+
+            btnBuscar = new CustomButton("Buscar", "#4A90E2");
+            btnBuscar.setPreferredSize(new Dimension(140, 38));
+
+            lblClienteSeleccionado = new JLabel("Cliente seleccionado: -");
+            lblClienteSeleccionado.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            lblClienteSeleccionado.setForeground(new Color(60, 60, 60));
 
             lblInline = new JLabel(" ");
-            lblInline.setForeground(new Color(120, 120, 120));
             lblInline.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            lblInline.setForeground(new Color(120, 120, 120));
 
-            top.add(row1);
-            top.add(row2);
-            top.add(lblInline);
+            sc.gridx = 0; sc.gridy = 0; sc.weightx = 0.0;
+            searchWrap.add(lblRS, sc);
 
-            JPanel mid = new JPanel(new GridLayout(6, 2, 8, 8));
-            mid.setOpaque(false);
+            sc.gridx = 1; sc.gridy = 0; sc.weightx = 1.0;
+            searchWrap.add(txtRazonSocial, sc);
+
+            sc.gridx = 2; sc.gridy = 0; sc.weightx = 0.0;
+            searchWrap.add(btnBuscar, sc);
+
+            sc.gridx = 0; sc.gridy = 1; sc.gridwidth = 3; sc.weightx = 1.0;
+            searchWrap.add(lblClienteSeleccionado, sc);
+
+            sc.gridx = 0; sc.gridy = 2; sc.gridwidth = 3;
+            searchWrap.add(lblInline, sc);
+
+            // ===== Form (dos columnas y más ancho) =====
+            JPanel form = new JPanel(new GridBagLayout());
+            form.setOpaque(false);
+
+            GridBagConstraints gc = new GridBagConstraints();
+            gc.insets = new Insets(10, 10, 10, 10);
+            gc.fill = GridBagConstraints.HORIZONTAL;
 
             txtActividad = new JTextField();
             txtDescripcion = new JTextArea(4, 20);
             txtDescripcion.setLineWrap(true);
             txtDescripcion.setWrapStyleWord(true);
             JScrollPane spDesc = new JScrollPane(txtDescripcion);
+            spDesc.setPreferredSize(new Dimension(10, 120));
 
             dateChooser = new JDateChooser();
             dateChooser.setDate(java.sql.Date.valueOf(LocalDate.now()));
@@ -506,85 +520,98 @@ public class DashboardPanel extends JPanel {
 
             spHour = new JSpinner(new SpinnerNumberModel(9, 0, 23, 1));
             spMinute = new JSpinner(new SpinnerNumberModel(0, 0, 59, 5));
-
-            spDurHour = new JSpinner(new SpinnerNumberModel(1, 0, 12, 1));
-            spDurMin = new JSpinner(new SpinnerNumberModel(0, 0, 59, 5));
-
-            cmbEstado = new JComboBox<>(new String[]{"Pendiente", "Completado", "Cancelada"});
-            cmbEstado.setEditable(true);
-
-            mid.add(new JLabel("Actividad:"));
-            mid.add(txtActividad);
-
-            mid.add(new JLabel("Descripción:"));
-            mid.add(spDesc);
-
-            mid.add(new JLabel("Fecha:"));
-            mid.add(dateChooser);
-
             JPanel timePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
             timePanel.setOpaque(false);
-            timePanel.add(new JLabel("Hora:"));
             timePanel.add(spHour);
             timePanel.add(new JLabel(":"));
             timePanel.add(spMinute);
 
-            mid.add(new JLabel("Hora inicio:"));
-            mid.add(timePanel);
-
+            spDurHour = new JSpinner(new SpinnerNumberModel(1, 0, 12, 1));
+            spDurMin = new JSpinner(new SpinnerNumberModel(0, 0, 59, 5));
             JPanel durPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
             durPanel.setOpaque(false);
-            durPanel.add(new JLabel("Duración:"));
             durPanel.add(spDurHour);
             durPanel.add(new JLabel("h"));
             durPanel.add(spDurMin);
             durPanel.add(new JLabel("m"));
 
-            mid.add(new JLabel("Duración:"));
-            mid.add(durPanel);
+            cmbEstado = new JComboBox<>(new String[]{"Activa", "Pendiente", "En proceso", "Completado", "Cancelada"});
+            cmbEstado.setEditable(true);
 
-            mid.add(new JLabel("Estado:"));
-            mid.add(cmbEstado);
+            int row = 0;
+            row = addRow(form, gc, row, "Actividad:", txtActividad);
+            row = addRow(form, gc, row, "Descripción:", spDesc);
+            row = addRow(form, gc, row, "Fecha:", dateChooser);
+            row = addRow(form, gc, row, "Hora inicio:", timePanel);
+            row = addRow(form, gc, row, "Duración:", durPanel);
+            row = addRow(form, gc, row, "Estado:", cmbEstado);
 
-            JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            // ===== Buttons =====
+            JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
             buttons.setOpaque(false);
 
             CustomButton btnCancel = new CustomButton("Cancelar", "#9E9E9E");
+            btnCancel.setPreferredSize(new Dimension(140, 40));
+
             CustomButton btnSave = new CustomButton("Guardar", "#4A90E2");
+            btnSave.setPreferredSize(new Dimension(160, 40));
 
             btnCancel.addActionListener(e -> dispose());
             btnSave.addActionListener(e -> onSave());
+            btnBuscar.addActionListener(e -> onBuscarClientePorRazonSocial());
 
             buttons.add(btnCancel);
             buttons.add(btnSave);
 
-            btnBuscar.addActionListener(e -> onBuscarCliente());
+            // Center wrapper para dejar scroll si luego agregas más campos
+            JPanel center = new JPanel(new BorderLayout(0, 8));
+            center.setOpaque(false);
+            center.add(searchWrap, BorderLayout.NORTH);
+            center.add(form, BorderLayout.CENTER);
 
-            root.add(top, BorderLayout.NORTH);
-            root.add(mid, BorderLayout.CENTER);
-            root.add(buttons, BorderLayout.SOUTH);
+            card.add(header, BorderLayout.NORTH);
+            card.add(center, BorderLayout.CENTER);
+            card.add(buttons, BorderLayout.SOUTH);
 
+            root.add(card, BorderLayout.CENTER);
             setContentPane(root);
+
+            setInline("Ingrese la razón social y presione Buscar.", false);
         }
 
-        private void onBuscarCliente() {
+        // ✅ LIKE/ILIKE ignorando mayúsculas/minúsculas, y selector custom si hay varios
+        private void onBuscarClientePorRazonSocial() {
             clienteId = null;
-            lblRazonSocial.setText("-");
+            lblClienteSeleccionado.setText("Cliente seleccionado: -");
 
-            String ruc = txtRuc.getText() == null ? "" : txtRuc.getText().trim();
-            if (ruc.isBlank()) {
-                setInline("Ingrese el RUC del cliente.", true);
+            String razon = txtRazonSocial.getText() == null ? "" : txtRazonSocial.getText().trim();
+            if (razon.isBlank()) {
+                setInline("Ingrese la razón social del cliente.", true);
                 return;
             }
 
             try {
-                var c = clienteRepo.findBasicByRuc(ruc);
-                if (c == null) {
-                    setInline("RUC de cliente no válido", true);
+                // Este método lo agregas en ClienteRepository (abajo te dejo el código)
+                List<secsys.dto.ClienteBasicDTO> matches = clienteRepo.findBasicByRazonSocialLikeIgnoreCase(razon);
+
+                if (matches == null || matches.isEmpty()) {
+                    setInline("No se encontraron clientes con esa razón social.", true);
                     return;
                 }
-                clienteId = c.clienteId;
-                lblRazonSocial.setText(c.razonSocial);
+
+                secsys.dto.ClienteBasicDTO selected;
+                if (matches.size() == 1) {
+                    selected = matches.get(0);
+                } else {
+                    selected = showClientePicker(matches);
+                    if (selected == null) {
+                        setInline("Selección cancelada.", true);
+                        return;
+                    }
+                }
+
+                clienteId = selected.clienteId;
+                lblClienteSeleccionado.setText("Cliente seleccionado: " + nvl(selected.razonSocial));
                 setInline("Cliente encontrado.", false);
 
             } catch (Exception ex) {
@@ -592,39 +619,118 @@ public class DashboardPanel extends JPanel {
             }
         }
 
+        // Selector custom (RoundedPanel + CustomButton)
+        private secsys.dto.ClienteBasicDTO showClientePicker(List<secsys.dto.ClienteBasicDTO> matches) {
+            JDialog dlg = new JDialog(this, "Seleccionar cliente", ModalityType.APPLICATION_MODAL);
+            dlg.setSize(560, 420);
+            dlg.setLocationRelativeTo(this);
+            dlg.setResizable(false);
+
+            JPanel root = new JPanel(new BorderLayout());
+            root.setBackground(new Color(245, 247, 250));
+            root.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+            RoundedPanel card = new RoundedPanel(20);
+            card.setBackground(Color.WHITE);
+            card.setLayout(new BorderLayout(10, 10));
+            card.setBorder(new EmptyBorder(14, 14, 14, 14));
+
+            JLabel t = new JLabel("Se encontraron " + matches.size() + " clientes");
+            t.setFont(new Font("Segoe UI", Font.BOLD, 16));
+
+            JLabel s = new JLabel("Seleccione uno para continuar.");
+            s.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            s.setForeground(new Color(110, 110, 110));
+
+            JPanel top = new JPanel();
+            top.setOpaque(false);
+            top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+            top.add(t);
+            top.add(Box.createVerticalStrut(4));
+            top.add(s);
+
+            DefaultListModel<secsys.dto.ClienteBasicDTO> model = new DefaultListModel<>();
+            for (var c : matches) model.addElement(c);
+
+            JList<secsys.dto.ClienteBasicDTO> list = new JList<>(model);
+            list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            list.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            list.setCellRenderer((jl, value, index, isSelected, cellHasFocus) -> {
+                JLabel lbl = new JLabel(nvl(value == null ? null : value.razonSocial));
+                lbl.setOpaque(true);
+                lbl.setBorder(new EmptyBorder(8, 10, 8, 10));
+                lbl.setBackground(isSelected ? new Color(230, 240, 255) : Color.WHITE);
+                lbl.setForeground(new Color(40, 40, 40));
+                return lbl;
+            });
+
+            list.setSelectedIndex(0);
+
+            JScrollPane sp = new JScrollPane(list);
+            sp.setBorder(BorderFactory.createLineBorder(new Color(230, 230, 230)));
+
+            JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+            buttons.setOpaque(false);
+
+            CustomButton btnCancel = new CustomButton("Cancelar", "#9E9E9E");
+            btnCancel.setPreferredSize(new Dimension(120, 38));
+
+            CustomButton btnOk = new CustomButton("Seleccionar", "#4A90E2");
+            btnOk.setPreferredSize(new Dimension(140, 38));
+
+            final secsys.dto.ClienteBasicDTO[] selected = new secsys.dto.ClienteBasicDTO[1];
+
+            btnCancel.addActionListener(e -> {
+                selected[0] = null;
+                dlg.dispose();
+            });
+
+            btnOk.addActionListener(e -> {
+                selected[0] = list.getSelectedValue();
+                dlg.dispose();
+            });
+
+            // doble click selecciona
+            list.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                    if (e.getClickCount() == 2) {
+                        selected[0] = list.getSelectedValue();
+                        dlg.dispose();
+                    }
+                }
+            });
+
+            buttons.add(btnCancel);
+            buttons.add(btnOk);
+
+            card.add(top, BorderLayout.NORTH);
+            card.add(sp, BorderLayout.CENTER);
+            card.add(buttons, BorderLayout.SOUTH);
+
+            root.add(card, BorderLayout.CENTER);
+            dlg.setContentPane(root);
+            dlg.setVisible(true);
+
+            return selected[0];
+        }
+
         private void onSave() {
-            if (clienteId == null) {
-                setInline("Debe buscar un cliente válido antes de guardar.", true);
-                return;
-            }
+            if (clienteId == null) { setInline("Debe buscar un cliente válido antes de guardar.", true); return; }
 
             String act = txtActividad.getText() == null ? "" : txtActividad.getText().trim();
-            if (act.isBlank()) {
-                setInline("El campo 'Actividad' es obligatorio.", true);
-                return;
-            }
+            if (act.isBlank()) { setInline("El campo 'Actividad' es obligatorio.", true); return; }
 
             java.util.Date date = dateChooser.getDate();
-            if (date == null) {
-                setInline("Seleccione una fecha.", true);
-                return;
-            }
+            if (date == null) { setInline("Seleccione una fecha.", true); return; }
 
             int h = (Integer) spHour.getValue();
             int m = (Integer) spMinute.getValue();
-
             int dh = (Integer) spDurHour.getValue();
             int dm = (Integer) spDurMin.getValue();
-            if (dh == 0 && dm == 0) {
-                setInline("La duración no puede ser 0.", true);
-                return;
-            }
+            if (dh == 0 && dm == 0) { setInline("La duración no puede ser 0.", true); return; }
 
             String estado = String.valueOf(cmbEstado.getSelectedItem()).trim();
-            if (estado.isBlank()) {
-                setInline("El estado es obligatorio.", true);
-                return;
-            }
+            if (estado.isBlank()) { setInline("El estado es obligatorio.", true); return; }
 
             LocalDate selected = Instant.ofEpochMilli(date.getTime()).atZone(ZoneId.systemDefault()).toLocalDate();
             LocalDateTime iniLocal = selected.atTime(h, m);
@@ -648,8 +754,36 @@ public class DashboardPanel extends JPanel {
         }
 
         private void setInline(String msg, boolean err) {
-            lblInline.setText(msg == null ? " " : msg);
+            lblInline.setText(msg == null || msg.isBlank() ? " " : msg);
             lblInline.setForeground(err ? new Color(180, 0, 0) : new Color(0, 120, 0));
         }
+
+        private static int addRow(JPanel p, GridBagConstraints gc, int row, String label, JComponent field) {
+            gc.gridy = row;
+
+            gc.gridx = 0;
+            gc.weightx = 0.25;
+            JLabel l = new JLabel(label);
+            l.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            l.setForeground(new Color(60, 60, 60));
+            p.add(l, gc);
+
+            gc.gridx = 1;
+            gc.weightx = 0.75;
+            p.add(field, gc);
+
+            return row + 1;
+        }
+
+        private static String nvl(String s) {
+            return (s == null || s.isBlank()) ? "-" : s;
+        }
+
+        private static String safeMsg(Throwable t) {
+            if (t == null) return "";
+            String m = t.getMessage();
+            return (m == null || m.isBlank()) ? t.getClass().getSimpleName() : m;
+        }
     }
+
 }

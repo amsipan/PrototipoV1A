@@ -5,6 +5,7 @@ import secsys.views.addons.*;
 import secsys.repository.ClienteRepository;
 import secsys.repository.PlanningRepository;
 import secsys.dto.PlanningSummaryDTO;
+import secsys.dto.ClienteInfoDTO;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -20,12 +21,12 @@ public class PlanningViewPanel extends JPanel {
     private JPanel resultsPanel;
 
     // UI
-    private JTextField txtRuc;
+    private JTextField txtRazonSocial;
     private JLabel lblInline;
 
     // Estado
     private UUID selectedClienteId;
-    private UUID selectedPlanId; // se usa para descargar (última card tocada si decides usarlo)
+    private UUID selectedPlanId;
 
     // Repos
     private final ClienteRepository clienteRepo;
@@ -35,8 +36,6 @@ public class PlanningViewPanel extends JPanel {
 
         background = new ImageIcon("src\\secsys\\resources\\imagenFondo.png").getImage();
 
-        // ===== Repos (vía RepoFactory para no romper tu MainFrame) =====
-        // IMPORTANTE: RepoFactory.init(dbConnection) debe ejecutarse al iniciar la app.
         this.clienteRepo = RepoFactory.clienteRepository();
         this.planningRepo = RepoFactory.planningRepository();
 
@@ -55,15 +54,15 @@ public class PlanningViewPanel extends JPanel {
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
         title.setBorder(new EmptyBorder(0, 0, 10, 0));
 
-        // ===== BÚSQUEDA =====
+        // ===== BÚSQUEDA (Razón Social) =====
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
         searchPanel.setOpaque(false);
 
-        txtRuc = new JTextField(15);
+        txtRazonSocial = new JTextField(22);
         CustomButton btnSearch = new CustomButton("Buscar", "#4A90E2");
 
-        searchPanel.add(new JLabel("RUC del cliente:"));
-        searchPanel.add(txtRuc);
+        searchPanel.add(new JLabel("Razón social del cliente:"));
+        searchPanel.add(txtRazonSocial);
         searchPanel.add(btnSearch);
 
         // ===== INLINE MESSAGE =====
@@ -72,7 +71,6 @@ public class PlanningViewPanel extends JPanel {
         lblInline.setForeground(new Color(120, 120, 120));
 
         // ===== RESULTADOS =====
-        // OJO: ahora debe soportar muchas planificaciones, así que usamos JScrollPane
         resultsPanel = new JPanel(new GridLayout(0, 3, 12, 12));
         resultsPanel.setOpaque(false);
 
@@ -90,7 +88,6 @@ public class PlanningViewPanel extends JPanel {
 
         resultsContainer.add(scroll, BorderLayout.CENTER);
 
-        // Acción buscar: cargar desde BD y pintar cards
         btnSearch.addActionListener(e -> onSearch());
 
         // ===== BOTONES =====
@@ -124,8 +121,7 @@ public class PlanningViewPanel extends JPanel {
 
         add(card);
 
-        // Estado inicial
-        setInlineMessage("Ingrese un RUC y presione Buscar.", false);
+        setInlineMessage("Ingrese una razón social y presione Buscar.", false);
     }
 
     private void onSearch() {
@@ -133,22 +129,55 @@ public class PlanningViewPanel extends JPanel {
         selectedClienteId = null;
         selectedPlanId = null;
 
-        String ruc = txtRuc.getText() == null ? "" : txtRuc.getText().trim();
-        if (ruc.isEmpty()) {
-            setInlineMessage("Ingrese el RUC del cliente.", true);
+        String razon = txtRazonSocial.getText() == null ? "" : txtRazonSocial.getText().trim();
+        if (razon.isBlank()) {
+            setInlineMessage("Ingrese la razón social del cliente.", true);
             return;
         }
 
         try {
-            // Buscamos cliente (básico)
-            var cliente = clienteRepo.findBasicByRuc(ruc);
-            if (cliente == null) {
-                setInlineMessage("RUC de cliente no válido", true);
+            // 1) Buscar clientes por razón social (ILIKE)
+            List<ClienteInfoDTO> matches = clienteRepo.findByRazonSocialLikeIgnoreCase(razon);
+
+            if (matches == null || matches.isEmpty()) {
+                setInlineMessage("No existe un cliente con la razón social ingresada.", true);
                 return;
             }
-            selectedClienteId = cliente.clienteId;
 
-            // ✅ Traer TODAS las planificaciones del cliente (v1.0, v1.1, ...)
+            // 2) Si hay varios, seleccionar
+            ClienteInfoDTO selected;
+            if (matches.size() == 1) {
+                selected = matches.get(0);
+            } else {
+                String[] options = new String[matches.size()];
+                for (int i = 0; i < matches.size(); i++) {
+                    ClienteInfoDTO c = matches.get(i);
+                    options[i] = nvl(c.ruc) + " - " + nvl(c.razonSocial);
+                }
+
+                String pick = CustomSelectDialog.showSelect(
+                        SwingUtilities.getWindowAncestor(this),
+                        "Seleccionar cliente",
+                        "Se encontraron " + matches.size() + " clientes.\nSeleccione uno:",
+                        options
+                );
+
+
+                if (pick == null) {
+                    setInlineMessage("Selección cancelada.", true);
+                    return;
+                }
+
+                int idx = 0;
+                for (int i = 0; i < options.length; i++) {
+                    if (options[i].equals(pick)) { idx = i; break; }
+                }
+                selected = matches.get(idx);
+            }
+
+            selectedClienteId = selected.clienteId;
+
+            // 3) Traer planificaciones
             List<PlanningSummaryDTO> plans = planningRepo.findByClienteId(selectedClienteId);
 
             if (plans == null || plans.isEmpty()) {
@@ -156,9 +185,7 @@ public class PlanningViewPanel extends JPanel {
                 return;
             }
 
-            // Pintar cards: un "bloque" por planificación (Archivo/Estado/Versión/Descarga)
             showPlanningCards(plans);
-
             setInlineMessage("Planificaciones encontradas: " + plans.size(), false);
 
         } catch (Exception ex) {
@@ -166,37 +193,26 @@ public class PlanningViewPanel extends JPanel {
         }
     }
 
-    // ===== RESULTADOS (REAL, mantiene estilo de InfoCard) =====
     private void showPlanningCards(List<PlanningSummaryDTO> plans) {
         resultsPanel.removeAll();
 
         for (PlanningSummaryDTO p : plans) {
-            // Si viene null por cualquier razón, lo saltamos
             if (p == null) continue;
 
-            // Guardamos el último planId "visto" (no es obligatorio, pero sirve si luego quieres otra acción)
             selectedPlanId = p.planificacionId;
 
-            // 1) Archivo
             resultsPanel.add(new InfoCard("Archivo", nvl(p.archivoCsvNombre)));
-
-            // 2) Estado (vigencia Activa/Inactiva)
             resultsPanel.add(new InfoCard("Estado", nvl(p.estadoVigencia)));
-
-            // 3) Versión
             resultsPanel.add(new InfoCard("Versión", nvl(p.version)));
 
-            // 4) Descargar CSV (ocupa una celda adicional; se verá en la siguiente fila del grid)
-            resultsPanel.add(createDownloadCard(
-                    "Descargar CSV (" + nvl(p.version) + ")",
-                    "Descargar",
-                    () -> downloadCsv(p.planificacionId)
-            ));
+            // resultsPanel.add(createDownloadCard(
+            //         "Descargar CSV (" + nvl(p.version) + ")",
+            //         "Descargar",
+            //         () -> downloadCsv(p.planificacionId)
+            // ));
 
-            // 5) (Opcional pero útil) Tipo servicio para diferenciar si luego hay varios servicios
             resultsPanel.add(new InfoCard("Tipo servicio", nvl(p.tipoServicio)));
 
-            // 6) Rango de fechas
             String rango = "-";
             if (p.fechaInicio != null && p.fechaFin != null) {
                 rango = p.fechaInicio + "  →  " + p.fechaFin;
@@ -268,7 +284,6 @@ public class PlanningViewPanel extends JPanel {
         }
     }
 
-    // ===== RESET VISUAL =====
     private void resetResults() {
         resultsPanel.removeAll();
         resultsPanel.revalidate();
@@ -296,7 +311,6 @@ public class PlanningViewPanel extends JPanel {
         return m;
     }
 
-    // ===== FONDO =====
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);

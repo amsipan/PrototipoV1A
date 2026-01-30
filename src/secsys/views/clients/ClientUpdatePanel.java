@@ -1,19 +1,19 @@
 package secsys.views.clients;
 
-import com.toedter.calendar.JDateChooser;
+import secsys.db.DbException;
 import secsys.dto.ClienteInfoDTO;
 import secsys.repository.ClienteRepository;
 import secsys.router.ViewRouter;
+import secsys.views.addons.ActionMessageFrame;
 import secsys.views.addons.CustomButton;
+import secsys.views.addons.CustomSelectDialog;
 import secsys.views.addons.RoundedPanel;
 import secsys.views.planning.RepoFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 public class ClientUpdatePanel extends JPanel {
@@ -23,26 +23,21 @@ public class ClientUpdatePanel extends JPanel {
     private final ClienteRepository clienteRepo;
 
     // Search
+    private JTextField txtRazonSearch;
     private JTextField txtRucSearch;
     private CustomButton btnBuscar;
 
-    // Inline
-    private JLabel lblInline;
-
     // Form fields
-    private JTextField txtRuc; // NO editable
-    private JTextField txtRazonSocial;
+    private JTextField txtRuc;          // NO editable
+    private JTextField txtRazonSocial;  // NO editable
+    private JTextField txtSector;
+    private JTextField txtTamano;
     private JTextField txtDireccion;
     private JTextField txtRepresentante;
     private JTextField txtTelefono;
     private JTextField txtCorreo;
 
-    private JComboBox<String> cmbSector;
-    private JComboBox<String> cmbTamano;
     private JComboBox<String> cmbEstado;
-
-    private JDateChooser dcInicioContrato;
-    private JDateChooser dcFinContrato;
 
     // Buttons
     private CustomButton btnGuardar;
@@ -61,38 +56,68 @@ public class ClientUpdatePanel extends JPanel {
         setOpaque(false);
 
         RoundedPanel card = new RoundedPanel(25);
-        card.setPreferredSize(new Dimension(900, 580));
+        card.setPreferredSize(new Dimension(920, 600));
         card.setBackground(Color.WHITE);
         card.setLayout(new BorderLayout());
-        card.setBorder(new EmptyBorder(25, 30, 25, 30));
+        card.setBorder(new EmptyBorder(25, 35, 25, 35));
 
         JLabel title = new JLabel("Actualizar Cliente");
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        title.setBorder(new EmptyBorder(0, 0, 12, 0));
+        title.setBorder(new EmptyBorder(0, 0, 10, 0));
 
-        // ===== Top: búsqueda =====
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
-        searchPanel.setOpaque(false);
+        // =========================
+        // Panel búsqueda (GridBag alineado)
+        // =========================
+        JPanel searchWrap = new JPanel(new GridBagLayout());
+        searchWrap.setOpaque(false);
+        searchWrap.setBorder(new EmptyBorder(0, 0, 10, 0));
 
-        txtRucSearch = new JTextField(18);
+        GridBagConstraints sc = new GridBagConstraints();
+        sc.insets = new Insets(6, 6, 6, 6);
+        sc.fill = GridBagConstraints.HORIZONTAL;
+
+        JLabel lblRazon = new JLabel("Razón social del cliente:");
+        lblRazon.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+        JLabel lblRuc = new JLabel("RUC:");
+        lblRuc.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+        txtRazonSearch = new JTextField(20);
+        txtRucSearch = new JTextField(14);
+
         btnBuscar = new CustomButton("Buscar", "#4A90E2");
+        btnBuscar.setPreferredSize(new Dimension(180, 42));
 
-        searchPanel.add(new JLabel("RUC del cliente:"));
-        searchPanel.add(txtRucSearch);
-        searchPanel.add(btnBuscar);
+        sc.gridx = 0; sc.gridy = 0; sc.weightx = 0.0;
+        searchWrap.add(lblRazon, sc);
 
-        lblInline = new JLabel(" ");
-        lblInline.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        lblInline.setForeground(new Color(120, 120, 120));
+        sc.gridx = 1; sc.gridy = 0; sc.weightx = 1.0;
+        searchWrap.add(txtRazonSearch, sc);
 
-        JPanel top = new JPanel();
-        top.setOpaque(false);
-        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
-        top.add(searchPanel);
-        top.add(Box.createVerticalStrut(6));
-        top.add(lblInline);
+        sc.gridx = 2; sc.gridy = 0; sc.weightx = 0.0;
+        searchWrap.add(lblRuc, sc);
 
-        // ===== Center: formulario =====
+        sc.gridx = 3; sc.gridy = 0; sc.weightx = 0.6;
+        searchWrap.add(txtRucSearch, sc);
+
+        sc.gridx = 4; sc.gridy = 0; sc.weightx = 0.0;
+        searchWrap.add(btnBuscar, sc);
+
+        JLabel hint = new JLabel("Ingrese Razón social o RUC y presione Buscar.");
+        hint.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        hint.setBorder(new EmptyBorder(4, 6, 0, 0));
+        hint.setHorizontalAlignment(SwingConstants.CENTER);
+
+        JPanel north = new JPanel();
+        north.setOpaque(false);
+        north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
+        north.add(title);
+        north.add(searchWrap);
+        north.add(hint);
+
+        // =========================
+        // Formulario
+        // =========================
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
 
@@ -102,52 +127,50 @@ public class ClientUpdatePanel extends JPanel {
         gc.weightx = 1;
 
         txtRuc = new JTextField();
-        txtRuc.setEditable(false);      // ✅ NO se edita
-        txtRuc.setEnabled(false);       // ✅ visualmente bloqueado (gris)
-        txtRuc.setDisabledTextColor(new Color(60, 60, 60)); // que se vea legible
+        txtRuc.setEditable(false);
+        txtRuc.setEnabled(false);
+        txtRuc.setDisabledTextColor(new Color(60, 60, 60));
+
+        txtSector = new JTextField();
+        txtSector.setEditable(false);
+        txtSector.setEnabled(false);
+        txtSector.setDisabledTextColor(new Color(60, 60, 60));
 
         txtRazonSocial = new JTextField();
+        txtRazonSocial.setEditable(false);
+        txtRazonSocial.setEnabled(false);
+        txtRazonSocial.setDisabledTextColor(new Color(60, 60, 60));
+
+        txtTamano = new JTextField();
+        txtTamano.setEditable(false);
+        txtTamano.setEnabled(false);
+        txtTamano.setDisabledTextColor(new Color(60, 60, 60));
+
         txtDireccion = new JTextField();
         txtRepresentante = new JTextField();
         txtTelefono = new JTextField();
         txtCorreo = new JTextField();
 
-        cmbSector = new JComboBox<>(new String[]{
-                "Seleccione", "Comercial", "Industrial", "Servicios", "Tecnologico", "Otro"
-        });
-
-        cmbTamano = new JComboBox<>(new String[]{
-                "Seleccione", "Microempresa", "Pequena", "Mediana", "Grande"
-        });
-
-        cmbEstado = new JComboBox<>(new String[]{
-                "Activo", "Inactivo"
-        });
-
-        dcInicioContrato = new JDateChooser();
-        dcInicioContrato.setDateFormatString("dd/MM/yyyy");
-
-        dcFinContrato = new JDateChooser();
-        dcFinContrato.setDateFormatString("dd/MM/yyyy");
+        cmbEstado = new JComboBox<>(new String[]{"Activo", "Inactivo"});
 
         int row = 0;
         row = addRow(form, gc, row, "RUC:", txtRuc);
         row = addRow(form, gc, row, "Razón social:", txtRazonSocial);
         row = addRow(form, gc, row, "Dirección:", txtDireccion);
+        row = addRow(form, gc, row, "Sector:", txtSector);
+        row = addRow(form, gc, row, "Tamaño:", txtTamano);
         row = addRow(form, gc, row, "Representante legal:", txtRepresentante);
         row = addRow(form, gc, row, "Teléfono:", txtTelefono);
         row = addRow(form, gc, row, "Correo:", txtCorreo);
-        row = addRow(form, gc, row, "Sector:", cmbSector);
-        row = addRow(form, gc, row, "Tamaño:", cmbTamano);
         row = addRow(form, gc, row, "Estado:", cmbEstado);
-        row = addRow(form, gc, row, "Inicio contrato:", dcInicioContrato);
-        row = addRow(form, gc, row, "Fin contrato:", dcFinContrato);
 
         JPanel center = new JPanel(new BorderLayout());
         center.setOpaque(false);
         center.add(form, BorderLayout.NORTH);
 
-        // ===== Bottom: botones =====
+        // =========================
+        // Botones
+        // =========================
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttons.setOpaque(false);
 
@@ -159,14 +182,13 @@ public class ClientUpdatePanel extends JPanel {
         buttons.add(btnGuardar);
         buttons.add(btnVolver);
 
-        card.add(title, BorderLayout.NORTH);
-        card.add(top, BorderLayout.BEFORE_FIRST_LINE);
+        card.add(north, BorderLayout.NORTH);
         card.add(center, BorderLayout.CENTER);
         card.add(buttons, BorderLayout.SOUTH);
 
         add(card);
 
-        // ===== Events =====
+        // Eventos
         btnBuscar.addActionListener(e -> onBuscar());
         btnGuardar.addActionListener(e -> onGuardar());
         btnCancelar.addActionListener(e -> clearForm());
@@ -176,119 +198,204 @@ public class ClientUpdatePanel extends JPanel {
         });
 
         setFormEnabled(false);
-        setInlineMessage("Ingrese el RUC y presione Buscar.", false);
     }
 
     private void onBuscar() {
-        clearForm();
+        clearFormOnlyFields();
 
-        String ruc = txtRucSearch.getText() == null ? "" : txtRucSearch.getText().trim();
-        if (!isValidRuc(ruc)) {
-            setInlineMessage("RUC inválido. Debe tener 13 dígitos numéricos.", true);
+        String razon = (txtRazonSearch.getText() == null) ? "" : txtRazonSearch.getText().trim();
+        String ruc   = (txtRucSearch.getText() == null) ? "" : txtRucSearch.getText().trim();
+
+        Window owner = SwingUtilities.getWindowAncestor(this);
+
+        if (razon.isBlank() && ruc.isBlank()) {
+            ActionMessageFrame.showMsg("Campos obligatorios", "Ingrese Razón social o RUC.");
+            setFormEnabled(false);
             return;
         }
 
         try {
-            ClienteInfoDTO c = clienteRepo.findByRuc(ruc);
-            if (c == null) {
-                setFormEnabled(false);
-                setInlineMessage("RUC de cliente no válido", true);
+            ClienteInfoDTO selected;
+
+            // 1) Si hay RUC: exacto
+            if (!ruc.isBlank()) {
+                if (!ruc.matches("^\\d{13}$")) {
+                    ActionMessageFrame.showMsg("Campos obligatorios", "El RUC debe tener 13 dígitos.");
+                    setFormEnabled(false);
+                    return;
+                }
+
+                selected = clienteRepo.findByRuc(ruc);
+                if (selected == null) {
+                    ActionMessageFrame.showMsg("Error", "No se encontró un cliente con ese RUC.");
+                    setFormEnabled(false);
+                    return;
+                }
+
+                loadCliente(selected);
+                setFormEnabled(true);
                 return;
             }
 
-            clienteIdLoaded = c.clienteId;
+            // 2) Razón social: ILIKE
+            List<ClienteInfoDTO> matches = clienteRepo.findByRazonSocialLikeIgnoreCase(razon);
+            if (matches == null || matches.isEmpty()) {
+                ActionMessageFrame.showMsg("Error", "No se encontró un cliente con esa Razón social.");
+                setFormEnabled(false);
+                return;
+            }
 
-            txtRuc.setText(nvl(c.ruc)); // ✅ solo lectura
-            txtRazonSocial.setText(nvl(c.razonSocial));
-            txtDireccion.setText(nvl(c.direccion));
-            txtRepresentante.setText(nvl(c.representanteLegal));
-            txtTelefono.setText(nvl(c.telefono));
-            txtCorreo.setText(nvl(c.correo));
+            if (matches.size() == 1) {
+                selected = matches.get(0);
+            } else {
+                String[] options = new String[matches.size()];
+                for (int i = 0; i < matches.size(); i++) {
+                    ClienteInfoDTO c = matches.get(i);
+                    options[i] = (c.ruc == null ? "-" : c.ruc) + "  |  " +
+                            (c.razonSocial == null ? "-" : c.razonSocial);
+                }
 
-            selectCombo(cmbSector, c.sector);
-            selectCombo(cmbTamano, c.tamano);
-            selectCombo(cmbEstado, c.estado);
+                String pick = CustomSelectDialog.showSelect(
+                        owner,
+                        "Seleccionar cliente",
+                        "Se encontraron " + matches.size() + " clientes.\nSeleccione uno:",
+                        options
+                );
 
-            dcInicioContrato.setDate(toDate(c.fechaInicioContrato));
-            dcFinContrato.setDate(toDate(c.fechaFinContrato));
+                if (pick == null) {
+                    setFormEnabled(false);
+                    return;
+                }
 
+                int idx = 0;
+                for (int i = 0; i < options.length; i++) {
+                    if (options[i].equals(pick)) { idx = i; break; }
+                }
+                selected = matches.get(idx);
+            }
+
+            loadCliente(selected);
             setFormEnabled(true);
-            setInlineMessage("Cliente encontrado. Edite los campos y presione Guardar cambios.", false);
 
-        } catch (Exception ex) {
+        } catch (DbException ex) {
+            System.err.println("[CLIENT-UPDATE] Error buscando cliente:");
+            ex.printStackTrace();
+            ActionMessageFrame.showMsg("Error", "No se pudo consultar el cliente.");
             setFormEnabled(false);
-            setInlineMessage("Error buscando cliente: " + safeMsg(ex), true);
+        } catch (Exception ex) {
+            System.err.println("[CLIENT-UPDATE] Error inesperado buscando cliente:");
+            ex.printStackTrace();
+            ActionMessageFrame.showMsg("Error", "No se pudo consultar el cliente.");
+            setFormEnabled(false);
         }
     }
 
-
     private void onGuardar() {
-        // NOTA: aquí solo validamos y llamas al update que ya vas a implementar en ClienteRepository
         if (clienteIdLoaded == null) {
-            setInlineMessage("Primero busque un cliente válido.", true);
+            ActionMessageFrame.showMsg("Campos obligatorios", "Primero busque un cliente válido.");
             return;
         }
 
-        String razon = text(txtRazonSocial);
+        String msg = validateFormMessage();
+        if (msg != null) {
+            ActionMessageFrame.showMsg("Campos obligatorios", msg);
+            return;
+        }
+
         String dir = text(txtDireccion);
         String rep = text(txtRepresentante);
         String tel = text(txtTelefono);
         String correo = text(txtCorreo);
-
-        String sector = String.valueOf(cmbSector.getSelectedItem());
-        String tamano = String.valueOf(cmbTamano.getSelectedItem());
         String estado = String.valueOf(cmbEstado.getSelectedItem());
 
-        if (razon.isBlank()) {
-            setInlineMessage("Error en campo: Razón social (obligatorio).", true);
-            return;
-        }
-        if ("Seleccione".equalsIgnoreCase(sector)) {
-            setInlineMessage("Error en campo: Sector (seleccione un valor).", true);
-            return;
-        }
-        if ("Seleccione".equalsIgnoreCase(tamano)) {
-            setInlineMessage("Error en campo: Tamaño (seleccione un valor).", true);
-            return;
-        }
-
-        LocalDate ini = toLocalDate(dcInicioContrato.getDate());
-        LocalDate fin = toLocalDate(dcFinContrato.getDate());
-
-        if (ini == null) {
-            setInlineMessage("Error en campo: Inicio contrato (obligatorio).", true);
-            return;
-        }
-        if (fin == null) {
-            setInlineMessage("Error en campo: Fin contrato (obligatorio).", true);
-            return;
-        }
-        if (!fin.isAfter(ini)) {
-            setInlineMessage("Error en campo: Fin contrato (debe ser mayor a Inicio contrato).", true);
-            return;
-        }
-
         try {
-            // ✅ Si todavía no tienes update en el repo, dímelo y te doy ClienteRepository completo con update()
             clienteRepo.updateById(
                     clienteIdLoaded,
-                    razon,
                     dir.isBlank() ? null : dir,
                     rep.isBlank() ? null : rep,
                     tel.isBlank() ? null : tel,
                     correo.isBlank() ? null : correo,
-                    sector,
-                    tamano,
-                    estado,
-                    ini,
-                    fin
+                    estado
             );
 
-            setInlineMessage("Cliente actualizado correctamente.", false);
+            ActionMessageFrame.showMsg("Éxito", "Cliente actualizado correctamente.");
+
+        } catch (DbException ex) {
+            System.err.println("[CLIENT-UPDATE] Error actualizando cliente:");
+            ex.printStackTrace();
+
+            String human = mapDbErrorToHumanMessage(ex);
+            ActionMessageFrame.showMsg("Error", human);
 
         } catch (Exception ex) {
-            setInlineMessage("No se pudo actualizar: " + safeMsg(ex), true);
+            System.err.println("[CLIENT-UPDATE] Error inesperado actualizando cliente:");
+            ex.printStackTrace();
+            ActionMessageFrame.showMsg("Error", "No se pudo actualizar el cliente. Intente nuevamente.");
         }
+    }
+
+    private void loadCliente(ClienteInfoDTO c) {
+        if (c == null) return;
+
+        clienteIdLoaded = c.clienteId;
+
+        txtRuc.setText(nvl(c.ruc));
+        txtRazonSocial.setText(nvl(c.razonSocial));
+        txtDireccion.setText(nvl(c.direccion));
+        txtRepresentante.setText(nvl(c.representanteLegal));
+
+        // ✅ Sector: Tecnologico -> Tecnológico
+        String sector = nvl(c.sector);
+        if (sector.equalsIgnoreCase("Tecnologico")) {
+            sector = "Tecnológico";
+        }
+        txtSector.setText(sector);
+
+        // ✅ Tamaño: Pequena -> Pequeña
+        String tamano = nvl(c.tamano);
+        if (tamano.equalsIgnoreCase("Pequena")) {
+            tamano = "Pequeña";
+        }
+        txtTamano.setText(tamano);
+
+        txtTelefono.setText(nvl(c.telefono));
+        txtCorreo.setText(nvl(c.correo));
+        selectCombo(cmbEstado, c.estado);
+    }
+
+
+    private String validateFormMessage() {
+        String dir = text(txtDireccion);
+        String rep = text(txtRepresentante);
+        String tel = text(txtTelefono);
+        String email = text(txtCorreo);
+
+        if (dir.isBlank() || dir.length() < 3) return "Dirección inválida (mínimo 3 caracteres).";
+        if (rep.isBlank() || rep.length() < 3) return "Representante legal inválido (mínimo 3 caracteres";
+        if (tel.isBlank() || !tel.matches("^[0-9]{10}$")) return "Teléfono inválido (10 dígitos).";
+        if (email.isBlank() || !email.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"))
+            return "Correo electrónico inválido.";
+
+        return null;
+    }
+
+    private String mapDbErrorToHumanMessage(DbException ex) {
+        String raw = safeMsg(ex).toLowerCase();
+
+        if (raw.contains("d_email_check") || raw.contains("d_email")) {
+            return "No se pudo actualizar: el correo no es válido.";
+        }
+        if (raw.contains("telefono") && raw.contains("check")) {
+            return "No se pudo actualizar: el teléfono no es válido.";
+        }
+        if (raw.contains("representante") && raw.contains("check")) {
+            return "No se pudo actualizar: el representante no es válido.";
+        }
+        if (raw.contains("direccion") && raw.contains("check")) {
+            return "No se pudo actualizar: la dirección no es válida.";
+        }
+
+        return "No se pudo actualizar el cliente. Revise los datos e intente nuevamente.";
     }
 
     private void clearForm() {
@@ -298,44 +405,44 @@ public class ClientUpdatePanel extends JPanel {
         txtRazonSocial.setText("");
         txtDireccion.setText("");
         txtRepresentante.setText("");
+        txtSector.setText("");
+        txtTamano.setText("");
         txtTelefono.setText("");
         txtCorreo.setText("");
 
-        cmbSector.setSelectedIndex(0);
-        cmbTamano.setSelectedIndex(0);
         cmbEstado.setSelectedIndex(0);
 
-        dcInicioContrato.setDate(null);
-        dcFinContrato.setDate(null);
-
         setFormEnabled(false);
-        txtRucSearch.requestFocusInWindow();
+        txtRazonSearch.requestFocusInWindow();
+    }
+
+    private void clearFormOnlyFields() {
+        clienteIdLoaded = null;
+
+        txtRuc.setText("");
+        txtRazonSocial.setText("");
+        txtDireccion.setText("");
+        txtRepresentante.setText("");
+        txtTelefono.setText("");
+        txtCorreo.setText("");
+
+        cmbEstado.setSelectedIndex(0);
+        setFormEnabled(false);
     }
 
     private void setFormEnabled(boolean enabled) {
-        // RUC siempre bloqueado
         txtRuc.setEnabled(false);
+        txtRazonSocial.setEnabled(false);
 
-        txtRazonSocial.setEnabled(enabled);
         txtDireccion.setEnabled(enabled);
         txtRepresentante.setEnabled(enabled);
         txtTelefono.setEnabled(enabled);
         txtCorreo.setEnabled(enabled);
 
-        cmbSector.setEnabled(enabled);
-        cmbTamano.setEnabled(enabled);
         cmbEstado.setEnabled(enabled);
-
-        dcInicioContrato.setEnabled(enabled);
-        dcFinContrato.setEnabled(enabled);
 
         btnGuardar.setEnabled(enabled);
         btnCancelar.setEnabled(enabled);
-    }
-
-    private void setInlineMessage(String msg, boolean isError) {
-        lblInline.setText(msg == null || msg.isBlank() ? " " : msg);
-        lblInline.setForeground(isError ? new Color(180, 0, 0) : new Color(0, 120, 0));
     }
 
     private static int addRow(JPanel p, GridBagConstraints gc, int row, String label, JComponent field) {
@@ -370,16 +477,6 @@ public class ClientUpdatePanel extends JPanel {
         cmb.setSelectedIndex(0);
     }
 
-    private static boolean isValidRuc(String ruc) {
-        if (ruc == null) return false;
-        String x = ruc.trim();
-        if (x.length() != 13) return false;
-        for (int i = 0; i < x.length(); i++) {
-            if (!Character.isDigit(x.charAt(i))) return false;
-        }
-        return true;
-    }
-
     private static String text(JTextField t) {
         return t.getText() == null ? "" : t.getText().trim();
     }
@@ -388,20 +485,10 @@ public class ClientUpdatePanel extends JPanel {
         return s == null ? "" : s;
     }
 
-    private static LocalDate toLocalDate(Date d) {
-        if (d == null) return null;
-        return java.time.Instant.ofEpochMilli(d.getTime()).atZone(ZoneId.systemDefault()).toLocalDate();
-    }
-
-    private static Date toDate(LocalDate d) {
-        if (d == null) return null;
-        return Date.from(d.atStartOfDay(ZoneId.systemDefault()).toInstant());
-    }
-
-    private static String safeMsg(Exception ex) {
-        String m = ex.getMessage();
-        if (m == null || m.isBlank()) m = ex.getClass().getSimpleName();
-        return m;
+    private static String safeMsg(Throwable t) {
+        if (t == null) return "";
+        String m = t.getMessage();
+        return (m == null || m.isBlank()) ? t.getClass().getSimpleName() : m;
     }
 
     @Override

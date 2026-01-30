@@ -5,24 +5,43 @@ import java.awt.*;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ViewRouter {
+public final class ViewRouter {
 
-    private static JPanel container;
+    private static Container root;
     private static CardLayout layout;
-    private static final Map<String, JPanel> views = new HashMap<>();
+    private static final Map<String, JComponent> routes = new HashMap<>();
 
-    public static void init(Container parent) {
+    private ViewRouter() {}
+
+    public static void init(Container container) {
+        root = container;
         layout = new CardLayout();
-        container = new JPanel(layout);
-        parent.add(container, BorderLayout.CENTER);
+        root.setLayout(layout);
     }
 
-    public static void register(String name, JPanel panel) {
-        views.put(name, panel);
-        container.add(panel, name);
+    public static void register(String name, JComponent view) {
+        if (root == null || layout == null) {
+            throw new IllegalStateException("ViewRouter no inicializado. Llama ViewRouter.init(container).");
+        }
+
+        // ✅ reemplazo seguro
+        if (routes.containsKey(name)) {
+            JComponent old = routes.get(name);
+            root.remove(old);
+        }
+
+        routes.put(name, view);
+        root.add(view, name);
+        root.revalidate();
+        root.repaint();
     }
 
     public static void show(String name) {
-        layout.show(container, name);
+        if (!routes.containsKey(name)) {
+            throw new IllegalArgumentException("Vista no registrada: " + name);
+        }
+        layout.show(root, name);
+        root.revalidate();
+        root.repaint();
     }
 }

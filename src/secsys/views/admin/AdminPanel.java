@@ -40,7 +40,8 @@ public class AdminPanel extends JPanel {
         CustomButton btnModify = new CustomButton("Modificar usuario", "#5DA9E9");
         CustomButton btnDelete = new CustomButton("Eliminar usuario", "#6C63FF");
         CustomButton btnConsult = new CustomButton("Consultar usuarios", "#7B8DFF");
-        CustomButton btnBackup = new CustomButton("Generar respaldo de datos", "#3F7FDB");
+        CustomButton btnParametros = new CustomButton("Parametros del sistema", "#3F7FDB");
+        
 
         // ---- Navegación (prototipo) ----
         btnCreate.addActionListener(e ->
@@ -59,16 +60,15 @@ public class AdminPanel extends JPanel {
                 ViewRouter.show("admin-consult")
         );
 
-        btnBackup.addActionListener(e -> {
-                new SuccessMessageFrame("Datos respaldados correctamente").setVisible(true);
-                ViewRouter.show("dashboard");
+        btnParametros.addActionListener(e -> {
+                ViewRouter.show("admin-parametros");
         });
 
         actionsPanel.add(btnCreate);
         actionsPanel.add(btnModify);
         actionsPanel.add(btnDelete);
         actionsPanel.add(btnConsult);
-        actionsPanel.add(btnBackup);
+        actionsPanel.add(btnParametros);
 
         // ===== BOTÓN VOLVER =====
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));

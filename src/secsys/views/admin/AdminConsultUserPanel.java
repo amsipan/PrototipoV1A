@@ -1,17 +1,23 @@
 package secsys.views.admin;
 
+import secsys.repository.AdminUserRepository;
 import secsys.router.ViewRouter;
 import secsys.views.addons.*;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.List;
 
 public class AdminConsultUserPanel extends JPanel {
 
     private Image background;
     private JPanel resultsPanel;
+
+    private JTextField txtUsername; // (en tu mensaje lo llamas “razón social”)
     private JTextField txtCedula;
+
+    private final AdminUserRepository repo = new AdminUserRepository();
 
     public AdminConsultUserPanel() {
 
@@ -36,11 +42,16 @@ public class AdminConsultUserPanel extends JPanel {
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
         searchPanel.setOpaque(false);
 
+        txtUsername = new JTextField(15);
         txtCedula = new JTextField(15);
+
         CustomButton btnSearch = new CustomButton("Buscar", "#4A90E2");
         CustomButton btnShowAll = new CustomButton("Mostrar todos", "#5DA9E9");
 
-        searchPanel.add(new JLabel("Número de cédula:"));
+        // Si tu UI realmente dice “Razón social”, cambia el label aquí
+        searchPanel.add(new JLabel("Nombre de usuario:"));
+        searchPanel.add(txtUsername);
+        searchPanel.add(new JLabel("Cédula:"));
         searchPanel.add(txtCedula);
         searchPanel.add(btnSearch);
         searchPanel.add(btnShowAll);
@@ -57,8 +68,8 @@ public class AdminConsultUserPanel extends JPanel {
         resultsContainer.add(resultsPanel, BorderLayout.CENTER);
 
         // ===== ACCIONES =====
-        btnSearch.addActionListener(e -> showMockFiltered());
-        btnShowAll.addActionListener(e -> showMockAll());
+        btnSearch.addActionListener(e -> showFilteredActiveFromDb());
+        btnShowAll.addActionListener(e -> showAllActiveFromDb());
 
         // ===== BOTONES =====
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -69,8 +80,6 @@ public class AdminConsultUserPanel extends JPanel {
             resetResults();
             ViewRouter.show("admin");
         });
-
-        
 
         buttons.add(btnBack);
 
@@ -90,49 +99,126 @@ public class AdminConsultUserPanel extends JPanel {
 
         add(card);
 
-        // Mostrar todos por defecto
-        showMockAll();
+        // Cargar desde BD al abrir
+        showAllActiveFromDb();
     }
 
-    // ===== MOSTRAR TODOS =====
-    private void showMockAll() {
+    // ==========================
+    // Mostrar SOLO activos
+    // ==========================
+    private void showAllActiveFromDb() {
         resultsPanel.removeAll();
 
-        resultsPanel.add(new UserInfoCard(
-                "Juan Pérez", "0102030405", "jperez",
-                "juan.perez@segadvice.com", "Administrador", "Activo"
-        ));
+        try {
+            List<AdminUserRepository.UserRow> rows = repo.searchActiveAll();
 
-        resultsPanel.add(new UserInfoCard(
-                "María López", "0918273645", "mlopez",
-                "maria.lopez@segadvice.com", "Empleado Operativo", "Activo"
-        ));
+            if (rows.isEmpty()) {
+                resultsPanel.add(new InfoCard("Sin usuarios", "No existen usuarios Activos."));
+            } else {
+                for (AdminUserRepository.UserRow r : rows) {
+                    resultsPanel.add(new UserInfoCard(
+                            buildNombreCompleto(r.apellidos, r.nombres),
+                            nvl(r.cedula),
+                            nvl(r.username),
+                            nvl(r.correo),
+                            nvl(r.rol),
+                            nvl(r.estado)
+                    ));
+                }
+            }
 
-        resultsPanel.add(new UserInfoCard(
-                "Carlos Ruiz", "1102938475", "cruiz",
-                "carlos.ruiz@segadvice.com", "Gerente", "Inactivo"
-        ));
-        
+        } catch (Exception ex) {
+            System.out.println("[ADMIN-CONSULT] Error cargando usuarios activos:");
+            ex.printStackTrace();
+            resultsPanel.add(new InfoCard("Error", "No se pudo consultar usuarios en la base de datos."));
+        }
 
         resultsPanel.revalidate();
         resultsPanel.repaint();
     }
 
-    // ===== FILTRADO POR CÉDULA =====
-    private void showMockFiltered() {
+    // ==========================
+    // Buscar por username (COINCIDENCIA) o cédula (EXACTA), solo Activo
+    // Regla: si hay cédula => usa cédula; caso contrario usa username/razón social
+    // ==========================
+   private void showFilteredActiveFromDb() {
         resultsPanel.removeAll();
 
-        resultsPanel.add(new UserInfoCard(
-                "Carlos Ruiz", "1102938475", "cruiz",
-                "carlos.ruiz@segadvice.com", "Gerente", "Inactivo"
-        ));
+        String usernameIn = txtUsername.getText() == null ? "" : txtUsername.getText().trim();
+        String cedulaIn = txtCedula.getText() == null ? "" : txtCedula.getText().trim();
+
+        boolean hasCedula = !cedulaIn.isBlank();
+        boolean hasUsername = !usernameIn.isBlank();
+
+        if (!hasCedula && !hasUsername) {
+            ActionMessageFrame.showMsg("Campos obligatorios", "Ingrese una razón social o cédula");
+            return;
+        }
+
+        // Validación de cédula (solo si se usa)
+        if (hasCedula) {
+            if (cedulaIn.length() != 10 || !cedulaIn.matches("\\d{10}")) {
+                ActionMessageFrame.showMsg("Campos obligatorios", "La cédula debe tener 10 dígitos.");
+                return;
+            }
+        }
+
+        try {
+            List<AdminUserRepository.UserRow> rows;
+
+            if (hasCedula) {
+                rows = repo.searchActiveByCedulaExact(cedulaIn);     // exacto
+                if (rows.isEmpty()) {
+                    ActionMessageFrame.showMsg("Sin resultados", "Usuario no encontrado.");
+                    return;
+                }
+            } else {
+                rows = repo.searchActiveByUsernameLike(usernameIn);  // coincidencia
+                if (rows.isEmpty()) {
+                    // ✅ lo que pediste: sin card
+                    ActionMessageFrame.showMsg("Sin resultados", "Usuario no encontrado.");
+                    return;
+                }
+            }
+
+            // Pintar resultados encontrados
+            for (AdminUserRepository.UserRow r : rows) {
+                resultsPanel.add(new UserInfoCard(
+                        buildNombreCompleto(r.apellidos, r.nombres),
+                        nvl(r.cedula),
+                        nvl(r.username),
+                        nvl(r.correo),
+                        nvl(r.rol),
+                        nvl(r.estado)
+                ));
+            }
+
+        } catch (Exception ex) {
+            System.out.println("[ADMIN-CONSULT] Error buscando usuario activo:");
+            ex.printStackTrace();
+            ActionMessageFrame.showMsg("Error", "No se pudo consultar el usuario en la base de datos.");
+            return;
+        }
 
         resultsPanel.revalidate();
         resultsPanel.repaint();
+    }
+
+
+    private static String buildNombreCompleto(String apellidos, String nombres) {
+        String a = (apellidos == null) ? "" : apellidos.trim();
+        String n = (nombres == null) ? "" : nombres.trim();
+        String out = (a + " " + n).trim();
+        return out.isBlank() ? "-" : out;
+    }
+
+    private static String nvl(String s) {
+        return (s == null || s.isBlank()) ? "-" : s;
     }
 
     // ===== RESET =====
     private void resetResults() {
+        txtUsername.setText("");
         txtCedula.setText("");
         resultsPanel.removeAll();
         resultsPanel.revalidate();

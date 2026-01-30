@@ -11,6 +11,7 @@ public final class DbConnection {
 
     private final DbConfig cfg;
 
+
     public DbConnection(DbConfig cfg) {
         this.cfg = cfg;
     }
