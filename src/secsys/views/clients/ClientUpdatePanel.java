@@ -103,17 +103,12 @@ public class ClientUpdatePanel extends JPanel {
         sc.gridx = 4; sc.gridy = 0; sc.weightx = 0.0;
         searchWrap.add(btnBuscar, sc);
 
-        JLabel hint = new JLabel("Ingrese Razón social o RUC y presione Buscar.");
-        hint.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        hint.setBorder(new EmptyBorder(4, 6, 0, 0));
-        hint.setHorizontalAlignment(SwingConstants.CENTER);
-
+  
         JPanel north = new JPanel();
         north.setOpaque(false);
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
         north.add(title);
-        north.add(searchWrap);
-        north.add(hint);
+        north.add(searchWrap);;
 
         // =========================
         // Formulario
@@ -152,17 +147,18 @@ public class ClientUpdatePanel extends JPanel {
         txtCorreo = new JTextField();
 
         cmbEstado = new JComboBox<>(new String[]{"Activo", "Inactivo"});
+        cmbEstado.setEditable(false);
 
         int row = 0;
         row = addRow(form, gc, row, "RUC:", txtRuc);
         row = addRow(form, gc, row, "Razón social:", txtRazonSocial);
         row = addRow(form, gc, row, "Dirección:", txtDireccion);
-        row = addRow(form, gc, row, "Sector:", txtSector);
-        row = addRow(form, gc, row, "Tamaño:", txtTamano);
+        row = addRow(form, gc, row, "Sector empresarial:", txtSector);
+        row = addRow(form, gc, row, "Tamaño de la empresa:", txtTamano);
         row = addRow(form, gc, row, "Representante legal:", txtRepresentante);
-        row = addRow(form, gc, row, "Teléfono:", txtTelefono);
-        row = addRow(form, gc, row, "Correo:", txtCorreo);
-        row = addRow(form, gc, row, "Estado:", cmbEstado);
+        row = addRow(form, gc, row, "Teléfono de contacto:", txtTelefono);
+        row = addRow(form, gc, row, "Correo electrónico:", txtCorreo);
+        row = addRow(form, gc, row, "Estado del cliente:", cmbEstado);
 
         JPanel center = new JPanel(new BorderLayout());
         center.setOpaque(false);
@@ -274,6 +270,7 @@ public class ClientUpdatePanel extends JPanel {
                 selected = matches.get(idx);
             }
 
+            ActionMessageFrame.showMsg("Cliente encontrado", "Datos del cliente cargados exitosamente");
             loadCliente(selected);
             setFormEnabled(true);
 
@@ -346,14 +343,14 @@ public class ClientUpdatePanel extends JPanel {
 
         // ✅ Sector: Tecnologico -> Tecnológico
         String sector = nvl(c.sector);
-        if (sector.equalsIgnoreCase("Tecnologico")) {
+        if (sector.equalsIgnoreCase("Tecnologico") || sector.equalsIgnoreCase("Tecnológico")) {
             sector = "Tecnológico";
         }
         txtSector.setText(sector);
 
         // ✅ Tamaño: Pequena -> Pequeña
         String tamano = nvl(c.tamano);
-        if (tamano.equalsIgnoreCase("Pequena")) {
+        if (tamano.equalsIgnoreCase("Pequena") || tamano.equalsIgnoreCase("Pequeña")) {
             tamano = "Pequeña";
         }
         txtTamano.setText(tamano);

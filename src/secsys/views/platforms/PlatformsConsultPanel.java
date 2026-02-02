@@ -1,27 +1,33 @@
 package secsys.views.platforms;
 
 import secsys.router.ViewRouter;
+import secsys.views.addons.ActionMessageFrame;
 import secsys.views.addons.CustomButton;
-import secsys.views.addons.RoundedPanel;
+import secsys.views.addons.CustomSelectDialog;
 import secsys.views.addons.InfoCard;
+import secsys.views.addons.RoundedPanel;
+
+import secsys.repository.PlatformLicensingRepository;
+import secsys.repository.PlatformLicensingRepository.PlatformLicenseRow;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.List;
 
 public class PlatformsConsultPanel extends JPanel {
 
     private Image background;
 
+    private JTextField txtLicenseSearch;
     private JPanel resultsPanel;
-    private JComboBox<String> cmbPlatform;
+
+    private final PlatformLicensingRepository repo = new PlatformLicensingRepository();
 
     public PlatformsConsultPanel() {
 
         // ===== IMAGEN DE FONDO =====
-        background = new ImageIcon(
-                "src\\secsys\\resources\\imagenFondo.png"
-        ).getImage();
+        background = new ImageIcon("src\\secsys\\resources\\imagenFondo.png").getImage();
 
         setLayout(new GridBagLayout());
         setOpaque(false);
@@ -34,24 +40,23 @@ public class PlatformsConsultPanel extends JPanel {
         card.setBorder(new EmptyBorder(30, 40, 30, 40));
 
         // ===== TÍTULO =====
-        JLabel title = new JLabel("Consultar Plataforma");
+        JLabel title = new JLabel("Consultar Licenciamiento");
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
         title.setBorder(new EmptyBorder(0, 0, 20, 0));
 
         // ===== PANEL DE BÚSQUEDA =====
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 5));
         searchPanel.setOpaque(false);
 
-        cmbPlatform = new JComboBox<>(new String[]{
-                "KnowBe4 (USA)",
-                "SMARTFENSE (LATAM)"
-        });
+        txtLicenseSearch = new JTextField(22);
 
         CustomButton btnSearch = new CustomButton("Consultar", "#4A90E2");
+        CustomButton btnClear = new CustomButton("Limpiar", "#9E9E9E");
 
-        searchPanel.add(new JLabel("Plataforma:"));
-        searchPanel.add(cmbPlatform);
+        searchPanel.add(new JLabel("Nombre del licenciamiento:"));
+        searchPanel.add(txtLicenseSearch);
         searchPanel.add(btnSearch);
+        searchPanel.add(btnClear);
 
         // ===== RESULTADOS =====
         resultsPanel = new JPanel(new GridLayout(0, 3, 15, 15));
@@ -63,9 +68,6 @@ public class PlatformsConsultPanel extends JPanel {
         resultsContainer.setBorder(new EmptyBorder(15, 15, 15, 15));
         resultsContainer.setPreferredSize(new Dimension(800, 300));
         resultsContainer.add(resultsPanel, BorderLayout.CENTER);
-
-        // ===== ACCIÓN CONSULTAR =====
-        btnSearch.addActionListener(e -> showMockResults());
 
         // ===== BOTONES =====
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -94,49 +96,130 @@ public class PlatformsConsultPanel extends JPanel {
         card.add(footer, BorderLayout.SOUTH);
 
         add(card);
+
+        // ===== ACCIONES =====
+        btnSearch.addActionListener(e -> onSearch());
+        btnClear.addActionListener(e -> resetView());
     }
 
-    // ===== RESULTADOS SIMULADOS =====
-    private void showMockResults() {
+    private void onSearch() {
+        clearResults();
 
-        resultsPanel.removeAll();
+        String licenseIn = txtLicenseSearch.getText() == null ? "" : txtLicenseSearch.getText().trim();
 
-        boolean isUSA = cmbPlatform.getSelectedIndex() == 0;
+        if (licenseIn.isBlank()) {
+            ActionMessageFrame.showMsg("Campos obligatorios", "Ingrese el nombre del licenciamiento.");
+            return;
+        }
 
-        if (isUSA) {
-            resultsPanel.add(new InfoCard(
-                    "Tipo de licenciamiento",
-                    "Anual corporativo"
-            ));
-            resultsPanel.add(new InfoCard(
-                    "Costo anual por usuario",
-                    "$45.00"
-            ));
+        try {
+            // LIKE / coincidencia
+            List<PlatformLicenseRow> matches = repo.searchByLicenseNameLike(licenseIn);
+
+            if (matches == null || matches.isEmpty()) {
+                ActionMessageFrame.showMsg("Plataforma no encontrada", "Plataforma no encontrada");
+                return;
+            }
+
+            PlatformLicenseRow picked;
+
+            if (matches.size() == 1) {
+                picked = matches.get(0);
+            } else {
+                String[] options = new String[matches.size()];
+                for (int i = 0; i < matches.size(); i++) {
+                    PlatformLicenseRow r = matches.get(i);
+
+                    boolean usa = isUSA(r.plataformaCodigo);
+                    String extra = usa
+                            ? ("Usuarios: " + nvlNum(r.numeroUsuarios))
+                            : ("Costo anual: " + money(r.costoAnualTotal));
+
+                    options[i] =
+                            platformLabel(r.plataformaCodigo) + "  |  " +
+                            nvl(r.nombreLicenciamiento) + "  |  " +
+                            extra;
+                }
+
+                String pick = CustomSelectDialog.showSelect(
+                        SwingUtilities.getWindowAncestor(this),
+                        "Seleccionar licenciamiento",
+                        "Se encontraron " + matches.size() + " coincidencias.\nSeleccione una:",
+                        options
+                );
+
+                if (pick == null) return;
+
+                int idx = 0;
+                for (int i = 0; i < options.length; i++) {
+                    if (options[i].equals(pick)) { idx = i; break; }
+                }
+                picked = matches.get(idx);
+            }
+
+            renderResult(picked);
+
+        } catch (Exception ex) {
+            System.out.println("[PLATFORMS-CONSULT] Error consultando licenciamiento:");
+            ex.printStackTrace();
+            ActionMessageFrame.showMsg("Error", "No se pudo consultar la plataforma.");
+        }
+    }
+
+    private void renderResult(PlatformLicenseRow r) {
+        clearResults();
+
+        boolean usa = isUSA(r.plataformaCodigo);
+
+        resultsPanel.add(new InfoCard("Plataforma", platformLabel(r.plataformaCodigo)));
+        resultsPanel.add(new InfoCard("Nombre de licenciamiento", nvl(r.nombreLicenciamiento)));
+
+        if (usa) {
+            resultsPanel.add(new InfoCard("Número de usuarios", nvlNum(r.numeroUsuarios)));
+            resultsPanel.add(new InfoCard("Costo anual por usuario", money(r.costoAnualPorUsuario)));
         } else {
-            resultsPanel.add(new InfoCard(
-                    "URL",
-                    "https://latam.smartfense.com"
-            ));
-            resultsPanel.add(new InfoCard(
-                    "Tipo de licenciamiento",
-                    "Anual empresarial"
-            ));
-            resultsPanel.add(new InfoCard(
-                    "Costo anual",
-                    "$2,500.00"
-            ));
+            resultsPanel.add(new InfoCard("Costo anual total", money(r.costoAnualTotal)));
+            resultsPanel.add(new InfoCard("URL", nvl(r.url)));
         }
 
         resultsPanel.revalidate();
         resultsPanel.repaint();
     }
 
-    // ===== RESET =====
-    private void resetView() {
-        cmbPlatform.setSelectedIndex(0);
+    private void clearResults() {
         resultsPanel.removeAll();
         resultsPanel.revalidate();
         resultsPanel.repaint();
+    }
+
+    private void resetView() {
+        txtLicenseSearch.setText("");
+        clearResults();
+    }
+
+    private static boolean isUSA(String plataformaCodigo) {
+        return plataformaCodigo != null && plataformaCodigo.trim().equalsIgnoreCase("KB4");
+    }
+
+    private static String platformLabel(String plataformaCodigo) {
+        if (plataformaCodigo == null) return "-";
+        String c = plataformaCodigo.trim().toUpperCase();
+        if (c.equals("KB4")) return "KnowBe4 (USA)";
+        if (c.equals("SMF")) return "SMARTFENSE (LATAM)";
+        return c;
+    }
+
+    private static String nvl(String s) {
+        return (s == null || s.isBlank()) ? "-" : s;
+    }
+
+    private static String nvlNum(Integer n) {
+        return (n == null) ? "-" : String.valueOf(n);
+    }
+
+    private static String money(Object v) {
+        if (v == null) return "-";
+        return "$" + String.valueOf(v);
     }
 
     // ===== DIBUJO DEL FONDO =====

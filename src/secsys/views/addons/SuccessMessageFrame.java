@@ -4,36 +4,66 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
-public class SuccessMessageFrame extends JFrame {
+public class SuccessMessageFrame extends JDialog {
 
     public SuccessMessageFrame(String message) {
+        super((Window) null, "Operación exitosa", ModalityType.APPLICATION_MODAL);
 
-        setTitle("Operación exitosa");
-        setSize(360, 180);
-        setLocationRelativeTo(null);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setResizable(false);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        setAlwaysOnTop(true);
 
-        JPanel content = new JPanel();
-        content.setLayout(new BorderLayout());
-        content.setBorder(new EmptyBorder(25, 25, 20, 25));
+        JPanel content = new JPanel(new BorderLayout(14, 14));
+        content.setBorder(new EmptyBorder(18, 18, 18, 18));
         content.setBackground(Color.WHITE);
 
-        JLabel lblMessage = new JLabel(message, SwingConstants.CENTER);
-        lblMessage.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        // ===== TÍTULO =====
+        JLabel lblTitle = new JLabel("Operación exitosa");
+        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblTitle.setForeground(new Color(35, 35, 35));
 
-        JPanel footer = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        // ===== MENSAJE (WRAP REAL) =====
+        JTextArea area = new JTextArea(message == null ? "" : message);
+        area.setWrapStyleWord(true);
+        area.setLineWrap(true);
+        area.setEditable(false);
+        area.setFocusable(false);
+        area.setOpaque(false);
+        area.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        area.setForeground(new Color(60, 60, 60));
+        area.setBorder(null);
+
+        JScrollPane sp = new JScrollPane(area);
+        sp.setBorder(null);
+        sp.setOpaque(false);
+        sp.getViewport().setOpaque(false);
+        sp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        sp.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+        // ===== FOOTER =====
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         footer.setOpaque(false);
-        footer.setBorder(new EmptyBorder(15, 0, 0, 0));
 
         CustomButton btnOk = new CustomButton("OK", "#4A90E2");
         btnOk.addActionListener(e -> dispose());
 
         footer.add(btnOk);
 
-        content.add(lblMessage, BorderLayout.CENTER);
+        content.add(lblTitle, BorderLayout.NORTH);
+        content.add(sp, BorderLayout.CENTER);
         content.add(footer, BorderLayout.SOUTH);
 
-        add(content);
+        setContentPane(content);
+
+        // Tamaño decente (evita ventanas mini)
+        setMinimumSize(new Dimension(520, 240));
+        setPreferredSize(new Dimension(520, 260));
+
+        pack();
+        setLocationRelativeTo(null);
+
+        // Forzar encima
+        toFront();
+        requestFocus();
     }
 }

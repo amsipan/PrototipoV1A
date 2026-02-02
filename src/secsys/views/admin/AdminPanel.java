@@ -28,7 +28,7 @@ public class AdminPanel extends JPanel {
         card.setBorder(new EmptyBorder(30, 40, 30, 40));
 
         // ===== TÍTULO =====
-        JLabel title = new JLabel("Administración de Usuarios");
+        JLabel title = new JLabel("Administración del Sistema");
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
         title.setBorder(new EmptyBorder(0, 0, 20, 0));
 

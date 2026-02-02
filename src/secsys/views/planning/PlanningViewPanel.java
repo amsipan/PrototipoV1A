@@ -22,6 +22,7 @@ public class PlanningViewPanel extends JPanel {
 
     // UI
     private JTextField txtRazonSocial;
+    private JTextField txtRuc;
     private JLabel lblInline;
 
     // Estado
@@ -44,7 +45,7 @@ public class PlanningViewPanel extends JPanel {
 
         // ===== CARD PRINCIPAL =====
         RoundedPanel card = new RoundedPanel(25);
-        card.setPreferredSize(new Dimension(800, 480));
+        card.setPreferredSize(new Dimension(820, 520));
         card.setBackground(Color.WHITE);
         card.setLayout(new BorderLayout());
         card.setBorder(new EmptyBorder(25, 30, 25, 30));
@@ -54,18 +55,45 @@ public class PlanningViewPanel extends JPanel {
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
         title.setBorder(new EmptyBorder(0, 0, 10, 0));
 
-        // ===== BÚSQUEDA (Razón Social) =====
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
+        // ===== BÚSQUEDA (Razón Social + RUC) =====
+        JPanel searchPanel = new JPanel(new GridBagLayout());
         searchPanel.setOpaque(false);
 
+        GridBagConstraints sc = new GridBagConstraints();
+        sc.insets = new Insets(4, 6, 4, 6);
+        sc.fill = GridBagConstraints.HORIZONTAL;
+        sc.gridy = 0;
+
         txtRazonSocial = new JTextField(22);
+        txtRuc = new JTextField(22);
+
         CustomButton btnSearch = new CustomButton("Buscar", "#4A90E2");
 
-        searchPanel.add(new JLabel("Razón social del cliente:"));
-        searchPanel.add(txtRazonSocial);
-        searchPanel.add(btnSearch);
+        // Row 1: Razón social
+        sc.gridx = 0; sc.weightx = 0.0;
+        searchPanel.add(new JLabel("Razón social del cliente:"), sc);
+        sc.gridx = 1; sc.weightx = 1.0;
+        searchPanel.add(txtRazonSocial, sc);
 
-        // ===== INLINE MESSAGE =====
+        // Row 2: RUC
+        sc.gridy++;
+        sc.gridx = 0; sc.weightx = 0.0;
+        searchPanel.add(new JLabel("RUC del cliente:"), sc);
+        sc.gridx = 1; sc.weightx = 1.0;
+        txtRuc.setToolTipText("13 dígitos");
+        searchPanel.add(txtRuc, sc);
+
+        // Row 3: botón
+        sc.gridy++;
+        sc.gridx = 1; sc.weightx = 0.0;
+        searchPanel.add(btnSearch, sc);
+
+        // Buscar con Enter en cualquiera
+        txtRazonSocial.addActionListener(e -> onSearch());
+        txtRuc.addActionListener(e -> onSearch());
+        btnSearch.addActionListener(e -> onSearch());
+
+        // ===== INLINE MESSAGE (solo informativo, NO errores de validación) =====
         lblInline = new JLabel(" ");
         lblInline.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         lblInline.setForeground(new Color(120, 120, 120));
@@ -78,7 +106,7 @@ public class PlanningViewPanel extends JPanel {
         resultsContainer.setLayout(new BorderLayout());
         resultsContainer.setBackground(new Color(245, 247, 250));
         resultsContainer.setBorder(new EmptyBorder(12, 12, 12, 12));
-        resultsContainer.setPreferredSize(new Dimension(740, 260));
+        resultsContainer.setPreferredSize(new Dimension(760, 280));
 
         JScrollPane scroll = new JScrollPane(resultsPanel);
         scroll.setBorder(null);
@@ -88,14 +116,14 @@ public class PlanningViewPanel extends JPanel {
 
         resultsContainer.add(scroll, BorderLayout.CENTER);
 
-        btnSearch.addActionListener(e -> onSearch());
-
         // ===== BOTONES =====
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttons.setOpaque(false);
 
         CustomButton btnBack = new CustomButton("Volver", "#9E9E9E");
         btnBack.addActionListener(e -> {
+            // ✅ limpiar inputs (razón social y ruc) al salir
+            clearInputs();
             resetResults();
             clearState();
             ViewRouter.show("plannings");
@@ -120,8 +148,11 @@ public class PlanningViewPanel extends JPanel {
         card.add(buttons, BorderLayout.SOUTH);
 
         add(card);
+    }
 
-        setInlineMessage("Ingrese una razón social y presione Buscar.", false);
+    private void clearInputs() {
+        if (txtRazonSocial != null) txtRazonSocial.setText("");
+        if (txtRuc != null) txtRuc.setText("");
     }
 
     private void onSearch() {
@@ -129,67 +160,84 @@ public class PlanningViewPanel extends JPanel {
         selectedClienteId = null;
         selectedPlanId = null;
 
+        String ruc = txtRuc.getText() == null ? "" : txtRuc.getText().trim();
         String razon = txtRazonSocial.getText() == null ? "" : txtRazonSocial.getText().trim();
-        if (razon.isBlank()) {
-            setInlineMessage("Ingrese la razón social del cliente.", true);
-            return;
-        }
 
         try {
-            // 1) Buscar clientes por razón social (ILIKE)
-            List<ClienteInfoDTO> matches = clienteRepo.findByRazonSocialLikeIgnoreCase(razon);
+            ClienteInfoDTO selected = null;
 
-            if (matches == null || matches.isEmpty()) {
-                setInlineMessage("No existe un cliente con la razón social ingresada.", true);
-                return;
-            }
+            // PRIORIDAD: si escribió RUC, buscamos por RUC
+            if (!ruc.isBlank()) {
 
-            // 2) Si hay varios, seleccionar
-            ClienteInfoDTO selected;
-            if (matches.size() == 1) {
-                selected = matches.get(0);
-            } else {
-                String[] options = new String[matches.size()];
-                for (int i = 0; i < matches.size(); i++) {
-                    ClienteInfoDTO c = matches.get(i);
-                    options[i] = nvl(c.ruc) + " - " + nvl(c.razonSocial);
-                }
-
-                String pick = CustomSelectDialog.showSelect(
-                        SwingUtilities.getWindowAncestor(this),
-                        "Seleccionar cliente",
-                        "Se encontraron " + matches.size() + " clientes.\nSeleccione uno:",
-                        options
-                );
-
-
-                if (pick == null) {
-                    setInlineMessage("Selección cancelada.", true);
+                if (!ruc.matches("^\\d{13}$")) {
+                    showMsg("Verifique los datos", "RUC debe tener 13 dígitos");
                     return;
                 }
 
-                int idx = 0;
-                for (int i = 0; i < options.length; i++) {
-                    if (options[i].equals(pick)) { idx = i; break; }
+                selected = clienteRepo.findByRuc(ruc);
+
+                if (selected == null) {
+                    showMsg("No encontrado", "No existe una planificación para el RUC ingresado");
+                    return;
                 }
-                selected = matches.get(idx);
+
+            } else {
+                // Si NO hay RUC, buscamos por razón social
+                if (razon.isBlank()) {
+                    showMsg("Verifique los datos", "Ingrese la razón social: ");
+                    return;
+                }
+
+                List<ClienteInfoDTO> matches = clienteRepo.findByRazonSocialLikeIgnoreCase(razon);
+
+                if (matches == null || matches.isEmpty()) {
+                    showMsg("No encontrado", "No existe una planificación para la razón social ingresada.");
+                    return;
+                }
+
+                if (matches.size() == 1) {
+                    selected = matches.get(0);
+                } else {
+                    String[] options = new String[matches.size()];
+                    for (int i = 0; i < matches.size(); i++) {
+                        ClienteInfoDTO c = matches.get(i);
+                        options[i] = nvl(c.ruc) + " - " + nvl(c.razonSocial);
+                    }
+
+                    String pick = CustomSelectDialog.showSelect(
+                            SwingUtilities.getWindowAncestor(this),
+                            "Seleccionar cliente",
+                            "Se encontraron " + matches.size() + " clientes.\nSeleccione uno:",
+                            options
+                    );
+
+                    if (pick == null) {
+                        showMsg("Información", "Selección cancelada.");
+                        return;
+                    }
+
+                    int idx = 0;
+                    for (int i = 0; i < options.length; i++) {
+                        if (options[i].equals(pick)) { idx = i; break; }
+                    }
+                    selected = matches.get(idx);
+                }
             }
 
             selectedClienteId = selected.clienteId;
 
-            // 3) Traer planificaciones
             List<PlanningSummaryDTO> plans = planningRepo.findByClienteId(selectedClienteId);
 
             if (plans == null || plans.isEmpty()) {
-                setInlineMessage("El cliente no tiene planificaciones registradas.", true);
+                showMsg("Información", "El cliente no tiene planificaciones registradas.");
                 return;
             }
 
             showPlanningCards(plans);
-            setInlineMessage("Planificaciones encontradas: " + plans.size(), false);
+            ActionMessageFrame.showMsg("Exito", "Planificaciones encontradas:" + plans.size());
 
         } catch (Exception ex) {
-            setInlineMessage("Error consultando planificaciones: " + safeMsg(ex), true);
+            showMsg("Error", "Error consultando planificaciones: " + safeMsg(ex));
         }
     }
 
@@ -204,12 +252,6 @@ public class PlanningViewPanel extends JPanel {
             resultsPanel.add(new InfoCard("Archivo", nvl(p.archivoCsvNombre)));
             resultsPanel.add(new InfoCard("Estado", nvl(p.estadoVigencia)));
             resultsPanel.add(new InfoCard("Versión", nvl(p.version)));
-
-            // resultsPanel.add(createDownloadCard(
-            //         "Descargar CSV (" + nvl(p.version) + ")",
-            //         "Descargar",
-            //         () -> downloadCsv(p.planificacionId)
-            // ));
 
             resultsPanel.add(new InfoCard("Tipo servicio", nvl(p.tipoServicio)));
 
@@ -226,42 +268,16 @@ public class PlanningViewPanel extends JPanel {
         resultsPanel.repaint();
     }
 
-    private JPanel createDownloadCard(String title, String buttonText, Runnable onClick) {
-        RoundedPanel card = new RoundedPanel(18);
-        card.setLayout(new BorderLayout(8, 8));
-        card.setBackground(Color.WHITE);
-        card.setBorder(new EmptyBorder(12, 12, 12, 12));
-
-        JLabel lblTitle = new JLabel(title);
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        lblTitle.setForeground(new Color(70, 70, 70));
-
-        JButton btn = new JButton(buttonText);
-        btn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.addActionListener(e -> {
-            try {
-                onClick.run();
-            } catch (Exception ex) {
-                setInlineMessage("No se pudo descargar el CSV: " + safeMsg(ex), true);
-            }
-        });
-
-        card.add(lblTitle, BorderLayout.NORTH);
-        card.add(btn, BorderLayout.CENTER);
-        return card;
-    }
-
     private void downloadCsv(UUID planId) {
         if (planId == null) {
-            setInlineMessage("No hay una planificación seleccionada para descargar.", true);
+            showMsg("Verifique los datos", "No hay una planificación seleccionada para descargar.");
             return;
         }
 
         try {
             var up = planningRepo.getUploadByPlanificacionId(planId);
             if (up == null || up.fileBytes == null || up.fileBytes.length == 0) {
-                setInlineMessage("No existe un CSV almacenado para esta planificación.", true);
+                showMsg("Información", "No existe un CSV almacenado para esta planificación.");
                 return;
             }
 
@@ -277,10 +293,10 @@ public class PlanningViewPanel extends JPanel {
             File out = fc.getSelectedFile();
             Files.write(out.toPath(), up.fileBytes);
 
-            setInlineMessage("CSV descargado en: " + out.getAbsolutePath(), false);
+            showMsg("Información", "CSV descargado en: " + out.getAbsolutePath());
 
         } catch (Exception ex) {
-            setInlineMessage("Error descargando CSV: " + safeMsg(ex), true);
+            showMsg("Error", "Error descargando CSV: " + safeMsg(ex));
         }
     }
 
@@ -299,6 +315,10 @@ public class PlanningViewPanel extends JPanel {
     private void setInlineMessage(String msg, boolean isError) {
         lblInline.setText(msg == null || msg.isBlank() ? " " : msg);
         lblInline.setForeground(isError ? new Color(180, 0, 0) : new Color(0, 120, 0));
+    }
+
+    private void showMsg(String title, String msg) {
+        ActionMessageFrame.showMsg(this, title, msg);
     }
 
     private static String nvl(String s) {

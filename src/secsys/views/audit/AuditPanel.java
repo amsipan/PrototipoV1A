@@ -27,7 +27,7 @@ public class AuditPanel extends JPanel {
         card.setLayout(new BorderLayout());
         card.setBorder(new EmptyBorder(30, 40, 30, 40));
 
-        JLabel title = new JLabel("Auditoría del Sistema");
+        JLabel title = new JLabel("Auditoría");
         title.setFont(new Font("Segoe UI", Font.BOLD, 22));
         title.setBorder(new EmptyBorder(0, 0, 15, 0));
 

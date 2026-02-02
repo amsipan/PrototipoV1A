@@ -33,7 +33,7 @@ public class LoginPanel extends JPanel {
 
     // ✅ Ajusta estos valores EXACTOS a lo que tienes en la tabla usuarios
     private static final String[] ROLE_ITEMS = new String[]{
-            "Seleccione",
+            "Rol",
             "Empleado Operativo",
             "Presidente",
             "Gerente",
@@ -86,7 +86,7 @@ public class LoginPanel extends JPanel {
         loginBtn.setPreferredSize(new Dimension(200, 45));
         loginBtn.setMaximumSize(new Dimension(200, 45));
 
-        CustomButton loginLost = new CustomButton("¿Olvido su contraseña?", "#4A90E2");
+        CustomButton loginLost = new CustomButton("¿Olvidó su contraseña?", "#4A90E2");
         loginLost.setAlignmentX(Component.CENTER_ALIGNMENT);
         loginLost.setPreferredSize(new Dimension(200, 45));
         loginLost.setMaximumSize(new Dimension(200, 45));

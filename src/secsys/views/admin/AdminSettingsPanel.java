@@ -399,7 +399,7 @@ public class AdminSettingsPanel extends JPanel {
 
     private void onSaveMoneda() {
         if (cmbMoneda.getSelectedIndex() == 0) {
-            ActionMessageFrame.showMsg("Seleccione una moneda valida", "Seleccione una moneda valida.");
+            ActionMessageFrame.showMsg("Seleccione una moneda válida", "Seleccione una moneda válida.");
             return;
         }
 
@@ -442,7 +442,7 @@ public class AdminSettingsPanel extends JPanel {
             return;
         }
 
-        String err = validatePdfNoLibs(selectedPdf);
+        String err = válidatePdfNoLibs(selectedPdf);
         if (err != null) {
             ActionMessageFrame.showMsg("Error", err);
             return;
@@ -471,13 +471,13 @@ public class AdminSettingsPanel extends JPanel {
 
     private void onSaveBackupSchedule() {
         if (cmbFrecuencia.getSelectedIndex() == 0) {
-            ActionMessageFrame.showMsg("Seleccione un valor valido", "Seleccione un valor valido");
+            ActionMessageFrame.showMsg("Seleccione un valor válido", "Seleccione un valor válido");
             return;
         }
 
         String freq = String.valueOf(cmbFrecuencia.getSelectedItem()).trim();
         if (!isAllowedFreq(freq)) {
-            ActionMessageFrame.showMsg("Seleccione un valor valido", "Seleccione un valor valido");
+            ActionMessageFrame.showMsg("Seleccione un valor válido", "Seleccione un valor válido");
             return;
         }
 
@@ -643,21 +643,21 @@ public class AdminSettingsPanel extends JPanel {
     }
 
     // =========================================================
-    // VALIDACIÓN PDF SIN LIBS
+    // válidaCIÓN PDF SIN LIBS
     // =========================================================
 
-    private String validatePdfNoLibs(File f) {
+    private String válidatePdfNoLibs(File f) {
         String name = f.getName() == null ? "" : f.getName().toLowerCase();
-        if (!name.endsWith(".pdf")) return "Validación fallida: el archivo debe ser .pdf.";
-        if (f.length() <= 0) return "Validación fallida: el archivo está vacío.";
+        if (!name.endsWith(".pdf")) return "válidación fallida: el archivo debe ser .pdf.";
+        if (f.length() <= 0) return "válidación fallida: el archivo está vacío.";
 
         byte[] head;
         try { head = readUpTo(f, 2 * 1024 * 1024); }
-        catch (Exception ex) { return "Validación fallida: no se pudo leer el archivo."; }
+        catch (Exception ex) { return "válidación fallida: no se pudo leer el archivo."; }
 
-        if (head.length < 5) return "Validación fallida: estructura de PDF no válida.";
+        if (head.length < 5) return "válidación fallida: estructura de PDF no válida.";
         String header = new String(head, 0, Math.min(head.length, 20), StandardCharsets.ISO_8859_1);
-        if (!header.startsWith("%PDF-")) return "Validación fallida: estructura de PDF no válida.";
+        if (!header.startsWith("%PDF-")) return "válidación fallida: estructura de PDF no válida.";
 
         String text = new String(head, StandardCharsets.ISO_8859_1);
 
@@ -668,16 +668,16 @@ public class AdminSettingsPanel extends JPanel {
                 hasEOF = tail.contains("%%EOF");
             } catch (Exception ignore) {}
         }
-        if (!hasEOF) return "Validación fallida: estructura de PDF no válida (sin EOF).";
+        if (!hasEOF) return "válidación fallida: estructura de PDF no válida (sin EOF).";
 
         String low = text.toLowerCase();
         if (low.contains("/encrypt") || low.contains("/filter/standard") || low.contains("/filter /standard")) {
-            return "Validación fallida: el PDF está protegido.";
+            return "válidación fallida: el PDF está protegido.";
         }
 
         int pages = countRegex(text, "/Type\\s*/Page\\b") - countRegex(text, "/Type\\s*/Pages\\b");
         if (pages < 0) pages = 0;
-        if (pages > 1) return "Validación fallida: el PDF debe contener máximo 1 página.";
+        if (pages > 1) return "válidación fallida: el PDF debe contener máximo 1 página.";
 
         return null;
     }

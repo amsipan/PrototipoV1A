@@ -246,7 +246,7 @@ public class ClientInformationPanel extends JPanel {
                     selected = matches.get(idx);
                 }
             }
-
+            ActionMessageFrame.showMsg(this,"Cliente encontrado", "Cliente encontrado exitosamente");
             showResults(selected);
 
         } catch (DbException ex) {
@@ -292,7 +292,7 @@ public class ClientInformationPanel extends JPanel {
             resultsPanel.add(new InfoCard("Representante", nz(c.representanteLegal)));
 
         if (all || chkTelefono.isSelected())
-            resultsPanel.add(new InfoCard("Teléfono", nz(c.telefono)));
+            resultsPanel.add(new InfoCard("Teléfono de contacto", nz(c.telefono)));
 
         if (all || chkCorreo.isSelected())
             resultsPanel.add(new InfoCard("Correo", nz(c.correo)));

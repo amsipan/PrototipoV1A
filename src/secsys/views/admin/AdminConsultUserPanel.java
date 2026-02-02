@@ -151,7 +151,7 @@ public class AdminConsultUserPanel extends JPanel {
         boolean hasUsername = !usernameIn.isBlank();
 
         if (!hasCedula && !hasUsername) {
-            ActionMessageFrame.showMsg("Campos obligatorios", "Ingrese una razón social o cédula");
+            ActionMessageFrame.showMsg("Campos obligatorios", "Ingrese un nombre de usuario o cédula");
             return;
         }
 

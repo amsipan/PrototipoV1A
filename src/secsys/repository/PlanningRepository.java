@@ -21,6 +21,17 @@ public class PlanningRepository extends BaseRepository {
         super(provider);
     }
 
+    public static class ActivityDTO {
+        public UUID actividadId;
+        public UUID planificacionId;
+        public OffsetDateTime fechaInicio;
+        public OffsetDateTime fechaFin;
+        public String actividad;
+        public String descripcion;
+        public String estado;
+    }
+
+
     public UUID insertUpload(PlanningUploadDTO dto) {
 
         final String sqlPlan =
@@ -361,4 +372,114 @@ public class PlanningRepository extends BaseRepository {
             throw new DbException("Error insertando actividad manual: " + ex.getMessage(), ex);
         }
     }
+
+    public ActivityDTO getActivityById(UUID actividadId) throws Exception {
+    final String sql =
+            "SELECT actividad_id, planificacion_id, fecha_inicio, fecha_fin, actividad, descripcion, estado " +
+            "FROM sgsis.planificacion_actividad " +
+            "WHERE actividad_id = ? " +
+            "LIMIT 1";
+
+    try (Connection conn = provider.getConnection();
+         var ps = conn.prepareStatement(sql)) {
+
+        ps.setObject(1, actividadId);
+
+        try (var rs = ps.executeQuery()) {
+            if (!rs.next()) return null;
+
+            ActivityDTO a = new ActivityDTO();
+            a.actividadId = (UUID) rs.getObject("actividad_id");
+            a.planificacionId = (UUID) rs.getObject("planificacion_id");
+            a.fechaInicio = rs.getObject("fecha_inicio", OffsetDateTime.class);
+            a.fechaFin = rs.getObject("fecha_fin", OffsetDateTime.class);
+            a.actividad = rs.getString("actividad");
+            a.descripcion = rs.getString("descripcion");
+            a.estado = rs.getString("estado");
+            return a;
+        }
+    }
+}
+
+public void updateActivityEstadoRestricted(UUID actividadId, String nuevoEstado) throws Exception {
+    String e = (nuevoEstado == null) ? "" : nuevoEstado.trim();
+    if (!(e.equalsIgnoreCase("Completada") || e.equalsIgnoreCase("Cancelada"))) {
+        throw new IllegalArgumentException("Estado inválido");
+    }
+
+    final String sql =
+            "UPDATE sgsis.planificacion_actividad " +
+            "SET estado = ? " +
+            "WHERE actividad_id = ?";
+
+    try (Connection conn = provider.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setString(1, e);
+        ps.setObject(2, actividadId);
+
+        int upd = ps.executeUpdate();
+        if (upd == 0) throw new IllegalStateException("No se actualizó");
+    }
+}
+public void updateActivityNombre(UUID actividadId, String nuevoNombre) throws Exception {
+    final String sql =
+            "UPDATE sgsis.planificacion_actividad " +
+            "SET actividad = ? " +
+            "WHERE actividad_id = ?";
+
+    try (Connection conn = provider.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setString(1, nuevoNombre);
+        ps.setObject(2, actividadId);
+
+        int upd = ps.executeUpdate();
+        if (upd == 0) throw new IllegalStateException("No se actualizó");
+    }
+}
+public void updateActivityDescripcion(UUID actividadId, String nuevaDescripcion) throws Exception {
+    final String sql =
+            "UPDATE sgsis.planificacion_actividad " +
+            "SET descripcion = ? " +
+            "WHERE actividad_id = ?";
+
+    try (Connection conn = provider.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setString(1, nuevaDescripcion);
+        ps.setObject(2, actividadId);
+
+        int upd = ps.executeUpdate();
+        if (upd == 0) throw new IllegalStateException("No se actualizó");
+    }
+}
+public void updateActivityFechas(UUID actividadId, OffsetDateTime ini, OffsetDateTime fin) throws Exception {
+    // Validar estado = Pendiente en BD (regla rplan10)
+    ActivityDTO cur = getActivityById(actividadId);
+    if (cur == null) throw new IllegalStateException("Actividad no encontrada");
+
+    String est = cur.estado == null ? "" : cur.estado.trim();
+    if (!est.equalsIgnoreCase("Pendiente")) {
+        throw new IllegalStateException("No se permite modificar la actividad");
+    }
+
+    final String sql =
+            "UPDATE sgsis.planificacion_actividad " +
+            "SET fecha_inicio = ?, fecha_fin = ? " +
+            "WHERE actividad_id = ?";
+
+    try (Connection conn = provider.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setObject(1, ini);
+        ps.setObject(2, fin);
+        ps.setObject(3, actividadId);
+
+        int upd = ps.executeUpdate();
+        if (upd == 0) throw new IllegalStateException("No se actualizó");
+    }
+}
+
+
 }

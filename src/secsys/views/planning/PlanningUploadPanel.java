@@ -30,6 +30,7 @@ public class PlanningUploadPanel extends JPanel {
 
     // Cliente
     private JTextField txtRazonSocial;
+    private JTextField txtRuc;
     private CustomButton btnBuscar;
     private JLabel lblRazonSocialValue;
     private JLabel lblRucValue;
@@ -82,23 +83,44 @@ public class PlanningUploadPanel extends JPanel {
 
         int y = 0;
 
-        // ===== RAZÓN SOCIAL (CRITERIO) =====
+        // ===== RAZÓN SOCIAL =====
         JLabel lblRazon = new JLabel("Razón social del cliente:");
         lblRazon.setFont(new Font("Segoe UI", Font.BOLD, 12));
 
         txtRazonSocial = new JTextField(24);
-
-        btnBuscar = new CustomButton("Buscar", "#4A90E2");
-        btnBuscar.setPreferredSize(new Dimension(130, 38));
+        txtRazonSocial.setToolTipText("Ej: Segadvice S.A.");
 
         c.gridx = 0; c.gridy = y; c.weightx = 0.0;
         form.add(lblRazon, c);
 
-        c.gridx = 1; c.gridy = y; c.weightx = 1.0;
+        c.gridx = 1; c.gridy = y; c.weightx = 1.0; c.gridwidth = 2;
         form.add(txtRazonSocial, c);
+        c.gridwidth = 1;
+
+        // ===== RUC =====
+        y++;
+        JLabel lblRucIn = new JLabel("RUC del cliente:");
+        lblRucIn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        txtRuc = new JTextField(24);
+        txtRuc.setToolTipText("Ej: 1790012345001");
+
+        c.gridx = 0; c.gridy = y; c.weightx = 0.0;
+        form.add(lblRucIn, c);
+
+        c.gridx = 1; c.gridy = y; c.weightx = 1.0; c.gridwidth = 2;
+        form.add(txtRuc, c);
+        c.gridwidth = 1;
+
+        // ===== BOTÓN BUSCAR =====
+        y++;
+        btnBuscar = new CustomButton("Buscar", "#4A90E2");
+        btnBuscar.setPreferredSize(new Dimension(130, 38));
 
         c.gridx = 2; c.gridy = y; c.weightx = 0.0;
+        c.anchor = GridBagConstraints.EAST;
         form.add(btnBuscar, c);
+        c.anchor = GridBagConstraints.WEST;
 
         // ===== RESULTADO: RAZÓN SOCIAL + RUC =====
         y++;
@@ -197,15 +219,59 @@ public class PlanningUploadPanel extends JPanel {
     }
 
     // ===============================
-    // Buscar cliente por Razón Social (ILIKE)
+    // Buscar cliente por RUC (exacto) o por Razón Social (ILIKE)
     // ===============================
     private void onBuscarCliente() {
         clearInlineMessage();
         invalidateCliente();
 
+        String ruc = txtRuc.getText() == null ? "" : txtRuc.getText().trim();
         String razon = txtRazonSocial.getText() == null ? "" : txtRazonSocial.getText().trim();
+
+        // 1) Si hay RUC: validar y buscar por RUC
+        if (!ruc.isBlank()) {
+
+            if (ruc.length() < 13) {
+                ActionMessageFrame.showMsg("Error RUC", "El RUC debe tener 13 dígitos.");
+                refreshUploadEnabled();
+                return;
+            }
+
+            if (!ruc.matches("^\\d{13}$")) {
+                ActionMessageFrame.showMsg("Error RUC", "El RUC debe contener solo números (13 dígitos).");
+                refreshUploadEnabled();
+                return;
+            }
+
+            try {
+                ClienteInfoDTO cli = clienteRepo.findByRucExact(ruc);
+
+                if (cli == null) {
+                    ActionMessageFrame.showMsg("Error RUC", "No existe un cliente con el RUC ingresado");
+                    refreshUploadEnabled();
+                    return;
+                }
+
+                selectedClienteId = cli.clienteId;
+                lblRazonSocialValue.setText(safe(cli.razonSocial));
+                lblRucValue.setText(safe(cli.ruc));
+                refreshUploadEnabled();
+                return;
+
+            } catch (DbException ex) {
+                setInlineMessage("Error consultando cliente.", true);
+                refreshUploadEnabled();
+                return;
+            } catch (Exception ex) {
+                setInlineMessage("Error inesperado.", true);
+                refreshUploadEnabled();
+                return;
+            }
+        }
+
+        // 2) Si NO hay RUC: buscar por Razón Social
         if (razon.isBlank()) {
-            ActionMessageFrame.showMsg("Ingresar Razón Social","Debe ingresar una razón social");
+            ActionMessageFrame.showMsg("Ingresar criterio", "Debe ingresar una razón social o un RUC.");
             refreshUploadEnabled();
             return;
         }
@@ -237,7 +303,7 @@ public class PlanningUploadPanel extends JPanel {
                         options
                 );
 
-                if (pick == null) { // cancel
+                if (pick == null) {
                     setInlineMessage("Selección cancelada.", true);
                     refreshUploadEnabled();
                     return;
@@ -289,44 +355,43 @@ public class PlanningUploadPanel extends JPanel {
 
     private void onUpload() {
 
-    if (selectedClienteId == null || selectedCsv == null) {
-        ActionMessageFrame.showMsg("Campos obligatorios", "No se pudo cargar la planificación.");
-        return;
-    }
-
-    try {
-        byte[] bytes = Files.readAllBytes(selectedCsv.toPath());
-
-        PlanningUploadDTO dto = new PlanningUploadDTO();
-        dto.clienteId = selectedClienteId;
-        dto.fileName = selectedCsv.getName();
-        dto.fileBytes = bytes;
-
-        planningController.uploadPlanning(dto);
-
-        // ✅ Éxito como tu screenshot
-        ActionMessageFrame.showMsg("Campos obligatorios", "Planificación cargada exitosamente");
-
-        selectedCsv = null;
-        lblSelectedFile.setText("Ningún archivo seleccionado");
-        refreshUploadEnabled();
-
-    } catch (DbException ex) {
-
-        if (isDuplicateKey(ex)) {
-            ActionMessageFrame.showMsg(
-                "Campos obligatorios",
-                "No se pudo cargar la planificación. La versión ya esta en el sistema"
-            );
+        if (selectedClienteId == null || selectedCsv == null) {
+            ActionMessageFrame.showMsg("Campos obligatorios", "No se pudo cargar la planificación.");
             return;
         }
 
-        ActionMessageFrame.showMsg("Campos obligatorios", "No se pudo cargar la planificación. La versión ya esta en el sistema");
+        try {
+            byte[] bytes = Files.readAllBytes(selectedCsv.toPath());
 
-    } catch (Exception ex) {
-        ActionMessageFrame.showMsg("Campos", "No se pudo cargar la planificación.");
+            PlanningUploadDTO dto = new PlanningUploadDTO();
+            dto.clienteId = selectedClienteId;
+            dto.fileName = selectedCsv.getName();
+            dto.fileBytes = bytes;
+
+            planningController.uploadPlanning(dto);
+
+            ActionMessageFrame.showMsg("Campos obligatorios", "Planificación cargada exitosamente");
+
+            selectedCsv = null;
+            lblSelectedFile.setText("Ningún archivo seleccionado");
+            refreshUploadEnabled();
+
+        } catch (DbException ex) {
+
+            if (isDuplicateKey(ex)) {
+                ActionMessageFrame.showMsg(
+                        "Campos obligatorios",
+                        "No se pudo cargar la planificación. La versión ya esta en el sistema"
+                );
+                return;
+            }
+
+            ActionMessageFrame.showMsg("Campos obligatorios", "No se pudo cargar la planificación. La versión ya esta en el sistema");
+
+        } catch (Exception ex) {
+            ActionMessageFrame.showMsg("Campos", "No se pudo cargar la planificación.");
+        }
     }
-}
 
     private void refreshUploadEnabled() {
         btnUpload.setEnabled(selectedClienteId != null && selectedCsv != null);
@@ -340,6 +405,7 @@ public class PlanningUploadPanel extends JPanel {
 
     private void resetForm() {
         txtRazonSocial.setText("");
+        txtRuc.setText("");
         invalidateCliente();
         selectedCsv = null;
         lblSelectedFile.setText("Ningún archivo seleccionado");
@@ -361,7 +427,6 @@ public class PlanningUploadPanel extends JPanel {
         return (s == null || s.isBlank()) ? "-" : s;
     }
 
-
     private static boolean isDuplicateKey(DbException ex) {
         String m = (ex.getMessage() == null ? "" : ex.getMessage()).toLowerCase();
         return m.contains("duplicate key")
@@ -374,7 +439,6 @@ public class PlanningUploadPanel extends JPanel {
         super.paintComponent(g);
         g.drawImage(background, 0, 0, getWidth(), getHeight(), this);
     }
-
 
     private static ClienteRepository createDefaultClienteRepo() {
         DbConfig cfg = DbConfig.fromEnv();

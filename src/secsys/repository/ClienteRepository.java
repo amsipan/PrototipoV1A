@@ -60,6 +60,31 @@ public class ClienteRepository extends BaseRepository {
         }
     }
 
+    public ClienteInfoDTO findByRucExact(String ruc) throws Exception {
+    final String sql =
+            "SELECT cliente_id, ruc, razon_social " +
+            "FROM sgsis.cliente " +
+            "WHERE ruc = ? " +
+            "LIMIT 1";
+
+    try (Connection conn = provider.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setString(1, ruc);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            if (!rs.next()) return null;
+
+            ClienteInfoDTO dto = new ClienteInfoDTO();
+            dto.clienteId = (UUID) rs.getObject("cliente_id");
+            dto.ruc = rs.getString("ruc");
+            dto.razonSocial = rs.getString("razon_social");
+            return dto;
+        }
+    }
+}
+
+
     public ClienteInfoDTO findByRuc(String ruc) {
         String sql =
                 "SELECT cliente_id, ruc, razon_social, direccion, representante_legal, telefono, correo, " +

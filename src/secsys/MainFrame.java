@@ -14,7 +14,10 @@ import secsys.views.clients.ClientRegisterPanel;
 import secsys.views.clients.ClientUpdatePanel;
 import secsys.views.clients.ClientsActionsView;
 import secsys.views.finance.QuotationCreatePanel;
-import secsys.views.finance.QuotationLinkPanel;
+import secsys.views.finance.QuotationDocPanel;
+import secsys.views.finance.QuotationQueryPanel;
+import secsys.views.finance.QuotationUpdatePanel;
+import secsys.views.finance.QuotationsPanel;
 import secsys.views.planning.PlanningActionsView;
 import secsys.views.planning.PlanningUploadPanel;
 import secsys.views.planning.PlanningViewPanel;
@@ -30,7 +33,7 @@ public class MainFrame extends JFrame {
     
 
     public MainFrame() {
-        setTitle("SECSYS - Prototipo UI");
+        setTitle("SECSYS - SCASS");
         setSize(1200, 700);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -44,8 +47,11 @@ public class MainFrame extends JFrame {
         ViewRouter.register("clients-register", new ClientRegisterPanel());
         ViewRouter.register("clients-consult", new ClientInformationPanel());
         ViewRouter.register("clients-update", new ClientUpdatePanel());
-        ViewRouter.register("finance-quote", new QuotationCreatePanel());
-        ViewRouter.register("finance-link", new QuotationLinkPanel());
+        ViewRouter.register("finance", new QuotationsPanel());
+        ViewRouter.register("finance-generate", new QuotationCreatePanel());
+        ViewRouter.register("finance-review", new QuotationUpdatePanel());
+        ViewRouter.register("finance-consult", new QuotationQueryPanel());
+        ViewRouter.register("finance-exports", new QuotationDocPanel());
         ViewRouter.register("plannings", new PlanningActionsView());
         ViewRouter.register("planning-upload", new PlanningUploadPanel());
         ViewRouter.register("planning-view", new PlanningViewPanel());

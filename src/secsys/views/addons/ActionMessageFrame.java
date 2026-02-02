@@ -4,42 +4,79 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
-public final class ActionMessageFrame extends JFrame {
+public class ActionMessageFrame extends JDialog {
 
-    public ActionMessageFrame(String title, String message) {
-        super(title == null ? "Mensaje" : title);
+    public ActionMessageFrame(Window owner, String title, String message) {
+        super(owner, title, ModalityType.APPLICATION_MODAL);
 
-        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setResizable(false);
+        setAlwaysOnTop(true);
 
-        JPanel root = new JPanel(new BorderLayout());
+        JPanel root = new JPanel(new BorderLayout(14, 14));
+        root.setBorder(new EmptyBorder(18, 18, 18, 18));
         root.setBackground(Color.WHITE);
-        root.setBorder(new EmptyBorder(35, 35, 25, 35));
 
-        JLabel lbl = new JLabel(message == null ? "" : message, SwingConstants.CENTER);
-        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        // ✅ SIN color personalizado: queda negro por defecto
+        // ===== TÍTULO =====
+        JLabel lblTitle = new JLabel(title);
+        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblTitle.setForeground(new Color(35, 35, 35));
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        btns.setBackground(Color.WHITE);
+        // ===== MENSAJE (WRAP REAL) =====
+        JTextArea area = new JTextArea(message == null ? "" : message);
+        area.setWrapStyleWord(true);
+        area.setLineWrap(true);
+        area.setEditable(false);
+        area.setFocusable(false);
+        area.setOpaque(false);
+        area.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        area.setForeground(new Color(60, 60, 60));
+        area.setBorder(null);
 
+        JScrollPane sp = new JScrollPane(area);
+        sp.setBorder(null);
+        sp.setOpaque(false);
+        sp.getViewport().setOpaque(false);
+        sp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        sp.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+        // ===== BOTÓN (TU CustomButton) =====
         CustomButton btnOk = new CustomButton("Aceptar", "#4A90E2");
-        btnOk.setPreferredSize(new Dimension(150, 40));
         btnOk.addActionListener(e -> dispose());
 
-        btns.add(btnOk);
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        bottom.setOpaque(false);
+        bottom.add(btnOk);
 
-        root.add(lbl, BorderLayout.CENTER);
-        root.add(btns, BorderLayout.SOUTH);
+        root.add(lblTitle, BorderLayout.NORTH);
+        root.add(sp, BorderLayout.CENTER);
+        root.add(bottom, BorderLayout.SOUTH);
 
         setContentPane(root);
 
-        // Tamaño parecido al de tu captura
-        setSize(350, 200);
-        setLocationRelativeTo(null);
+        // ===== TAMAÑO DECENTE (NO MICRO) =====
+        // Puedes ajustar a tu gusto:
+        setMinimumSize(new Dimension(520, 240));
+        setPreferredSize(new Dimension(520, 260));
+
+        pack();
+
+        // Centrar respecto al owner
+        setLocationRelativeTo(owner);
+
+        // Forzar visibilidad encima
+        toFront();
+        requestFocus();
+    }
+
+    public static void showMsg(Component parent, String title, String message) {
+        Window owner = (parent == null) ? null : SwingUtilities.getWindowAncestor(parent);
+        ActionMessageFrame dlg = new ActionMessageFrame(owner, title, message);
+        dlg.setVisible(true);
     }
 
     public static void showMsg(String title, String message) {
-        new ActionMessageFrame(title, message).setVisible(true);
+        ActionMessageFrame dlg = new ActionMessageFrame(null, title, message);
+        dlg.setVisible(true);
     }
 }

@@ -18,7 +18,7 @@ public class SidebarPanel extends JPanel {
         add(makeNavButton("Clientes", () -> ViewRouter.show("clients")));
         add(Box.createVerticalStrut(10));
 
-        add(makeNavButton("Cotizaciones", () -> ViewRouter.show("finance-quote")));
+        add(makeNavButton("Cotizaciones", () -> ViewRouter.show("finance")));
         add(Box.createVerticalStrut(10));
 
         add(makeNavButton("Planificaciones", () -> ViewRouter.show("plannings")));
